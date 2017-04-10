@@ -1,26 +1,23 @@
 package org.fuberlin.wbsg.ccrdf;
 
+import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.simpledb.model.*;
+import org.apache.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
-
-import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
-import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
-import com.amazonaws.services.simpledb.model.CreateDomainRequest;
-import com.amazonaws.services.simpledb.model.ListDomainsResult;
-import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
-import com.amazonaws.services.simpledb.model.ReplaceableItem;
-
 public interface StatHandler {
-	public void addStats(String key, Map<String, String> data);
 
-	public void flush();
+	void addStats(String key, Map<String, String> data);
+
+	void flush();
 }
 
 class LoggingStatHandler implements StatHandler {
+
 	private static Logger log = Logger.getLogger(LoggingStatHandler.class);
 
 	@Override
@@ -35,11 +32,11 @@ class LoggingStatHandler implements StatHandler {
 }
 
 class AmazonStatHandler implements StatHandler {
-	private static Logger log = Logger.getLogger(AmazonStatHandler.class);
 
-	private AmazonSimpleDBClient client;
 	private static final int CACHE_SIZE = 24;
 	private static final int MAX_TRIES = 20;
+	private static Logger log = Logger.getLogger(AmazonStatHandler.class);
+	private AmazonSimpleDBClient client;
 	private String domain;
 
 	private Map<String, Map<String, String>> cache = new HashMap<String, Map<String, String>>();
@@ -62,8 +59,9 @@ class AmazonStatHandler implements StatHandler {
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
-				}				log.warn(ase);
-
+				}
+				log.warn(ase);
+				
 			}
 		} while (tries < MAX_TRIES);
 		throw new RuntimeException("Unable to connect to SDB " + domain);

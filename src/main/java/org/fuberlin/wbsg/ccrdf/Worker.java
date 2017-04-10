@@ -1,29 +1,11 @@
 package org.fuberlin.wbsg.ccrdf;
 
-import java.io.BufferedWriter;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.charset.IllegalCharsetNameException;
-import java.nio.charset.UnsupportedCharsetException;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.UUID;
-import java.util.zip.GZIPOutputStream;
-
+import com.amazonaws.services.sqs.model.DeleteMessageRequest;
+import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
+import com.amazonaws.services.sqs.model.ReceiveMessageResult;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.jets3t.service.S3ServiceException;
@@ -33,18 +15,19 @@ import org.jsoup.nodes.Document;
 import org.jwat.warc.WarcReader;
 import org.jwat.warc.WarcReaderFactory;
 import org.jwat.warc.WarcRecord;
-
 import webreduce.data.Dataset;
 import webreduce.extraction.DocumentMetadata;
 import webreduce.extraction.ExtractionAlgorithm;
 import webreduce.extraction.TableExtractionModule;
 
-import com.amazonaws.services.sqs.model.DeleteMessageRequest;
-import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
+import java.io.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.IllegalCharsetNameException;
+import java.nio.charset.UnsupportedCharsetException;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Worker node implementation, connects to queue, takes file name to process,
@@ -53,17 +36,44 @@ import com.google.inject.Injector;
  * from the queue and another node can have a shot.
  */
 public class Worker extends ProcessingNode {
-	private static Logger log = Logger.getLogger(Worker.class);
 
+	private static Logger log = Logger.getLogger(Worker.class);
+	private static Injector injector = Guice.createInjector(new TableExtractionModule());
 	protected final String dataBucket = getOrCry("dataBucket");
 	protected final String resultBucket = getOrCry("resultBucket");
 	private final int retryLimit = Integer.parseInt(getOrCry("jobRetryLimit"));
-	private static Injector injector = Guice.createInjector(new TableExtractionModule());
-
 	private StatHandler dataStatHandler = null;
 	private StatHandler errorStatHandler = null;
 
+	private static String getStackTrace(Throwable aThrowable) {
+		final Writer result = new StringWriter();
+		final PrintWriter printWriter = new PrintWriter(result);
+		aThrowable.printStackTrace(printWriter);
+		return result.toString();
+	}
+
+	public static void main(String[] args) {
+		new ThreadGuard(WorkerThread.class).start();
+	}
+
+	public StatHandler getDataStatHandler() {
+		if (dataStatHandler == null) {
+			dataStatHandler = new AmazonStatHandler(getDbClient(),
+					getOrCry("sdbdatadomain"));
+		}
+		return dataStatHandler;
+	}
+
+	public StatHandler getErrorStatHandler() {
+		if (errorStatHandler == null) {
+			errorStatHandler = new AmazonStatHandler(getDbClient(),
+					getOrCry("sdberrordomain"));
+		}
+		return errorStatHandler;
+	}
+	
 	private static class RecordWithOffsetsAndURL {
+
 		public byte[] bytes;
 		public long start;
 		public long end;
@@ -79,10 +89,11 @@ public class Worker extends ProcessingNode {
 	}
 	
 	public static class WorkerThread extends Thread {
-		private static final String WARC_TARGET_URI = "WARC-Target-URI";
-		private Timer timer = new Timer();
-		int timeLimit = 0;
 
+		private static final String WARC_TARGET_URI = "WARC-Target-URI";
+		int timeLimit = 0;
+		private Timer timer = new Timer();
+		
 		public WorkerThread() {
 		}
 
@@ -220,8 +231,9 @@ public class Worker extends ProcessingNode {
 							docResult = new ArrayList<>();
 						}
 						// add per-doc result to per-warc-file result
-						if (docResult != null)
+						if (docResult != null) {
 							result.addAll(docResult);
+						}
 						pagesTotal++;
 						// next record with one retry
 						item = getNextResponseRecord(warcReader);
@@ -323,9 +335,10 @@ public class Worker extends ProcessingNode {
 				} catch (IOException e) {
 					continue;
 				}
-				if (wr == null)
+				if (wr == null) {
 					return null;
-
+				}
+				
 				long offset = warcReader.getStartOffset();
 				String type = wr.getHeader("WARC-Type").value;
 				if (type.equals("response")) {
@@ -339,9 +352,9 @@ public class Worker extends ProcessingNode {
 		}
 
 		private void upload(Worker worker, String inputFileKey,
-				Iterable<Dataset> results) throws IOException,
-				UnknownHostException, S3ServiceException, NoSuchAlgorithmException {
-
+		                    Iterable<Dataset> results) throws IOException,
+				S3ServiceException, NoSuchAlgorithmException {
+			
 			long threadId = ThreadGuard.currentThread().getId();
 			File tmpFile = new File("/tmp/" + threadId
 					+ ".tmp");
@@ -355,8 +368,9 @@ public class Worker extends ProcessingNode {
 					writer.append("\n");
 				}
 			} finally {
-				if (writer != null)
+				if (writer != null) {
 					writer.close();
+				}
 				output.close();
 			}
 			if (tmpFile.exists()) {
@@ -374,30 +388,8 @@ public class Worker extends ProcessingNode {
 		}
 	}
 
-	public StatHandler getDataStatHandler() {
-		if (dataStatHandler == null) {
-			dataStatHandler = new AmazonStatHandler(getDbClient(),
-					getOrCry("sdbdatadomain"));
-		}
-		return dataStatHandler;
-	}
-
-	public StatHandler getErrorStatHandler() {
-		if (errorStatHandler == null) {
-			errorStatHandler = new AmazonStatHandler(getDbClient(),
-					getOrCry("sdberrordomain"));
-		}
-		return errorStatHandler;
-	}
-
-	private static String getStackTrace(Throwable aThrowable) {
-		final Writer result = new StringWriter();
-		final PrintWriter printWriter = new PrintWriter(result);
-		aThrowable.printStackTrace(printWriter);
-		return result.toString();
-	}
-
 	public static class ThreadGuard extends Thread {
+
 		private List<Thread> threads = new ArrayList<Thread>();
 		private int threadLimit = Runtime.getRuntime().availableProcessors();
 		private int threadSerial = 0;
@@ -441,10 +433,6 @@ public class Worker extends ProcessingNode {
 				}
 			}
 		}
-	}
-
-	public static void main(String[] args) {
-		new ThreadGuard(WorkerThread.class).start();
 	}
 
 }

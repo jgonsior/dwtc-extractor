@@ -1,28 +1,5 @@
 package webreduce.extraction.basic;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.commons.lang3.StringEscapeUtils;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.safety.Whitelist;
-import org.jsoup.select.Elements;
-
-import webreduce.data.Dataset;
-import webreduce.data.HeaderPosition;
-import webreduce.extraction.DocumentMetadata;
-import webreduce.extraction.ExtractionAlgorithm;
-import webreduce.extraction.StatsKeeper;
-import webreduce.terms.LuceneNormalizer;
-
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
@@ -31,6 +8,26 @@ import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.safety.Whitelist;
+import org.jsoup.select.Elements;
+import webreduce.data.Dataset;
+import webreduce.data.HeaderPosition;
+import webreduce.extraction.DocumentMetadata;
+import webreduce.extraction.ExtractionAlgorithm;
+import webreduce.extraction.StatsKeeper;
+import webreduce.terms.LuceneNormalizer;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 /*
  * Uses simple heuristics to separate data from layout tables in a given
@@ -45,13 +42,11 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	protected static final double MIN_ATTRIBUTE_SIZE_AVG = 4.0;
 	protected static final double MAX_ATTRIBUTE_SIZE_AVG = 20.0;
 	protected static final int TABLE_MIN_ROWS = 3;
-
-	protected StatsKeeper stats;
-
 	protected static final CharMatcher cleaner = CharMatcher.WHITESPACE;
 	protected static final Joiner joiner = Joiner.on(" ").skipNulls();
 	protected static final Whitelist whitelist = Whitelist.simpleText();
-
+	private static int NUM_RUNS = 50;
+	protected StatsKeeper stats;
 	protected boolean th_filter;
 	protected boolean th_filter_strong;
 	protected boolean th_filter_mark_only;
@@ -59,20 +54,52 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	protected boolean extract_content;
 	protected boolean extract_part_content;
 	protected boolean save_reference;
-
 	protected LuceneNormalizer termExtractor;
 
-	public static enum TABLE_COUNTERS {
-		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_TABLES, RELATIONS_FOUND, SPARSE_TABLE, LINK_TABLE, CALENDAR_FOUND, NON_REGULAR_TABLES, LANGDETECT_EXCEPTION, ENGLISH, NON_ENGLISH, TO_MANY_BADWORDS, SPANNING_TD, NO_HEADERS, MORE_THAN_ONE_HEADER, SHORT_ATTRIBUTE_NAMES, LONG_ATTRIBUTE_NAMES,
-	}
-
 	@Inject
-	public BasicExtractionAlgorithm(StatsKeeper stats, @Named("extractTopNTerms") boolean th_extract_terms) {
+	public BasicExtractionAlgorithm(StatsKeeper stats,
+	                                @Named("extractTopNTerms") boolean th_extract_terms) {
 		super();
 		this.stats = stats;
 		this.extract_terms = th_extract_terms;
-		if (extract_terms)
+		if (extract_terms) {
 			this.termExtractor = new LuceneNormalizer();
+		}
+	}
+	
+	protected static String cleanCell(String cell) {
+		cell = Jsoup.clean(cell, whitelist);
+		cell = StringEscapeUtils.unescapeHtml4(cell);
+		cell = cleaner.trimAndCollapseFrom(cell, ' ');
+		return cell;
+	}
+	
+	public static void main(String[] args) throws
+			IOException, InterruptedException {
+		ExtractionAlgorithm ea = new BasicExtractionAlgorithm(
+				new StatsKeeper.HashMapStats(), true);
+		
+		for (String url : new String[]{
+				"http://en.wikipedia.org/wiki/List_of_countries_by_population",
+				"http://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)",
+				"http://en.wikipedia.org/wiki/BRIC"}) {
+			InputStream in = new URL(url).openStream();
+			
+			long startTime = System.nanoTime();
+			for (int i = 0; i < NUM_RUNS; i++) {
+				Document doc = Jsoup.parse(in, null, "");
+				DocumentMetadata dm = new DocumentMetadata(0, 0, "", "");
+				List<Dataset> result = ea.extract(doc, dm);
+				for (Dataset er : result) {
+					System.out.println(Arrays.deepToString(er.relation));
+					System.out.println(er.getHeaderPosition());
+				}
+			}
+			long endTime = System.nanoTime();
+			System.out.println("Time: "
+					+ (((float) (endTime - startTime)) / NUM_RUNS) / 1000000);
+			// System.out.println(ea.stats.statsAsMap().toString());
+		}
 	}
 
 	/* (non-Javadoc)
@@ -86,7 +113,8 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		String[] tags = null;
 		int count = -1;
 		// iterate tables tags; find relations
-		main_loop: for (Element table : doc.getElementsByTag("table")) {
+		main_loop:
+		for (Element table : doc.getElementsByTag("table")) {
 			// boolean isFiltered = false;
 			stats.reportProgress();
 			count += 1;
@@ -123,13 +151,14 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				int td_size = tds.size();
 				tdCounts[tr_idx] = td_size;
 				colCounts.add(td_size);
-				if (td_size > maxtdCount)
+				if (td_size > maxtdCount) {
 					maxtdCount = td_size;
+				}
 			}
 			// find most common number of columns throughout all rows
 			colCounts = Multisets.copyHighestCountFirst(colCounts);
-				int mostFrequentColCount = colCounts.entrySet().iterator().next()
-						.getElement();
+			int mostFrequentColCount = colCounts.entrySet().iterator().next()
+					.getElement();
 			if (mostFrequentColCount < TABLE_MIN_COLS) {
 				stats.incCounter(TABLE_COUNTERS.SMALL_TABLES);
 				continue;
@@ -187,14 +216,15 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 			if (tags == null && extract_terms) {
 				String bodyContent = doc.select("body").text();
 				Set<String> tagSet = termExtractor.topNTerms(bodyContent, 100);
-				tags = tagSet.toArray(new String[] {});
+				tags = tagSet.toArray(new String[]{});
 				Arrays.sort(tags);
 			}
 			er.termSet = tags;
 			er.hasHeader = has_header;
 			Elements caption = table.select("caption");
-			if (caption.size() == 1)
+			if (caption.size() == 1) {
 				er.setTitle(cleanCell(caption.get(0).text()));
+			}
 			er.setPageTitle(doc.title());
 			stats.incCounter(TABLE_COUNTERS.RELATIONS_FOUND);
 			result.add(er);
@@ -203,7 +233,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	}
 
 	protected Optional<Dataset> doExtract(Element table, Elements trs,
-			int mostFrequentColCount) {
+	                                      int mostFrequentColCount) {
 		// remove sparse tables (more than X% null cells)
 		int tableSize = trs.size() * mostFrequentColCount;
 		Optional<Dataset> r = asRelation(trs, mostFrequentColCount,
@@ -214,7 +244,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	}
 
 	protected Optional<Dataset> asRelation(Elements input, int numCols,
-			int nullLimit, int linkLimit) {
+	                                       int nullLimit, int linkLimit) {
 		int nullCounter = 0;
 		int linkCounter = 0;
 		int numRows = input.size();
@@ -226,8 +256,9 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 			for (c = 0; c < td_size; c++) {
 				Element cell = cells.get(c);
 				Elements links = cell.select("a");
-				if (links.size() > 0)
+				if (links.size() > 0) {
 					linkCounter += 1;
+				}
 				String cellStr = cleanCell(cell.text());
 				if (cellStr.length() == 0) {
 					nullCounter += 1;
@@ -280,23 +311,17 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		}
 
 		HeaderPosition result = null;
-		if (fr && fc)
+		if (fr && fc) {
 			result = HeaderPosition.MIXED;
-		else if (fr)
+		} else if (fr) {
 			result = HeaderPosition.FIRST_ROW;
-		else if (fc)
+		} else if (fc) {
 			result = HeaderPosition.FIRST_COLUMN;
-		else
+		} else {
 			result = HeaderPosition.NONE;
+		}
 
 		return result;
-	}
-
-	protected static String cleanCell(String cell) {
-		cell = Jsoup.clean(cell, whitelist);
-		cell = StringEscapeUtils.unescapeHtml4(cell);
-		cell = cleaner.trimAndCollapseFrom(cell, ' ');
-		return cell;
 	}
 
 	/* (non-Javadoc)
@@ -306,35 +331,9 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	public StatsKeeper getStatsKeeper() {
 		return stats;
 	}
-
-	private static int NUM_RUNS = 50;
-
-	public static void main(String[] args) throws MalformedURLException,
-			IOException, InterruptedException {
-		ExtractionAlgorithm ea = new BasicExtractionAlgorithm(
-				new StatsKeeper.HashMapStats(), true);
-
-		for (String url : new String[] {
-				"http://en.wikipedia.org/wiki/List_of_countries_by_population",
-				"http://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)",
-				"http://en.wikipedia.org/wiki/BRIC" }) {
-			InputStream in = new URL(url).openStream();
-
-			long startTime = System.nanoTime();
-			for (int i = 0; i < NUM_RUNS; i++) {
-				Document doc = Jsoup.parse(in, null, "");
-				DocumentMetadata dm = new DocumentMetadata(0, 0, "", "");
-				List<Dataset> result = ea.extract(doc, dm);
-				for (Dataset er : result) {
-					 System.out.println(Arrays.deepToString(er.relation));
-					 System.out.println(er.getHeaderPosition());
-				}
-			}
-			long endTime = System.nanoTime();
-			System.out.println("Time: "
-					+ (((float) (endTime - startTime)) / NUM_RUNS) / 1000000);
-			// System.out.println(ea.stats.statsAsMap().toString());
-		}
+	
+	public enum TABLE_COUNTERS {
+		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_TABLES, RELATIONS_FOUND, SPARSE_TABLE, LINK_TABLE, CALENDAR_FOUND, NON_REGULAR_TABLES, LANGDETECT_EXCEPTION, ENGLISH, NON_ENGLISH, TO_MANY_BADWORDS, SPANNING_TD, NO_HEADERS, MORE_THAN_ONE_HEADER, SHORT_ATTRIBUTE_NAMES, LONG_ATTRIBUTE_NAMES,
 	}
 
 }

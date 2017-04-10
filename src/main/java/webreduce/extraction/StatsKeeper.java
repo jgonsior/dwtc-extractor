@@ -10,19 +10,21 @@ import java.util.Map;
 public abstract class StatsKeeper {
 
 	public abstract void incCounter(Enum<?> counter);
-	public abstract Map<String,Integer> statsAsMap();
-	public abstract void reportProgress();
 	
+	public abstract Map<String, Integer> statsAsMap();
+
+	public abstract void reportProgress();
+
 	public static class HashMapStats extends StatsKeeper {
+
 		protected HashMap<String, Integer> counters = new HashMap<String, Integer>();
 
 		@Override
 		public void incCounter(Enum<?> counter) {
-			if(counters.containsKey(counter.name())) {
-				int co = (Integer) counters.get(counter.name()).intValue();
+			if (counters.containsKey(counter.name())) {
+				int co = counters.get(counter.name()).intValue();
 				counters.put(counter.name(), Integer.valueOf(++co));
-			}
-			else {
+			} else {
 				counters.put(counter.name(), 1);
 			}
 		}
@@ -33,15 +35,17 @@ public abstract class StatsKeeper {
 
 		public Map<String, Integer> statsAsMap() {
 			return counters;
-	    }
+		}
 
 		public void addMap(HashMap<String, Integer> addmap) {
-			for (Map.Entry<String, Integer> e : addmap.entrySet())
-				if (this.counters.containsKey(e.getKey()))
+			for (Map.Entry<String, Integer> e : addmap.entrySet()) {
+				if (this.counters.containsKey(e.getKey())) {
 					this.counters.put(e.getKey(), e.getValue() + this.counters.get(e.getKey()));
-				else
+				} else {
 					this.counters.put(e.getKey(), e.getValue());
-	    }
+				}
+			}
+		}
 	}
 
 	public static class NullStats extends StatsKeeper {

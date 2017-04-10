@@ -1,48 +1,31 @@
 package org.fuberlin.wbsg.ccrdf;
 
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.*;
+import org.apache.log4j.Logger;
+import org.jets3t.service.S3ServiceException;
+import org.jets3t.service.impl.rest.httpclient.RestS3Service;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.log4j.Logger;
-import org.jets3t.service.S3ServiceException;
-import org.jets3t.service.impl.rest.httpclient.RestS3Service;
-
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClient;
-import com.amazonaws.services.sqs.model.CreateQueueRequest;
-import com.amazonaws.services.sqs.model.CreateQueueResult;
-import com.amazonaws.services.sqs.model.DeleteQueueRequest;
-import com.amazonaws.services.sqs.model.GetQueueUrlRequest;
-import com.amazonaws.services.sqs.model.GetQueueUrlResult;
-
 public abstract class ProcessingNode {
-	private static Logger log = Logger.getLogger(ProcessingNode.class);
 
-	private static final String PFILENAME = "/webreduce.properties";
 	public static final String DATA_SUFFIX = ".warc.gz";
-
-	private Properties config = null;
-
-	private AmazonSimpleDBClient sdb = null;
-
-	private RestS3Service s3 = null;
-
-	private AmazonSQS sqs = null;
-
+	private static final String PFILENAME = "/webreduce.properties";
+	private static Logger log = Logger.getLogger(ProcessingNode.class);
 	String queueUrl = null;
-
-	protected Properties config() {
-		if (config == null) {
-			config = loadConfig(PFILENAME);
-		}
-		return config;
-	}
+	private Properties config = null;
+	private AmazonSimpleDBClient sdb = null;
+	private RestS3Service s3 = null;
+	private AmazonSQS sqs = null;
 
 	private static Properties loadConfig(String f) {
 		Properties p = new Properties();
@@ -60,13 +43,18 @@ public abstract class ProcessingNode {
 		return p;
 	}
 
+	protected Properties config() {
+		if (config == null) {
+			config = loadConfig(PFILENAME);
+		}
+		return config;
+	}
+	
 	/**
 	 * Returns property value for a certain key.
 	 *
-	 * @param key
 	 * @return property value, empty string if property could not be found
-	 * @throws IllegalArgumentException
-	 *             if no key is set.
+	 * @throws IllegalArgumentException if no key is set.
 	 */
 	public String getOrCry(String key) {
 		if (key == null || key.trim().equals("")) {

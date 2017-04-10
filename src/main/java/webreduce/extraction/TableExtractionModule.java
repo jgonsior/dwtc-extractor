@@ -1,18 +1,16 @@
 package webreduce.extraction;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
-
+import com.google.inject.AbstractModule;
+import com.google.inject.name.Names;
 import org.fuberlin.wbsg.ccrdf.ProcessingNode;
-
 import webreduce.extraction.StatsKeeper.HashMapStats;
 import webreduce.extraction.basic.BasicExtractionAlgorithm;
 import webreduce.extraction.mh.MHExtractionAlgorithm;
 
-import com.google.inject.AbstractModule;
-import com.google.inject.name.Names;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 
 public class TableExtractionModule extends AbstractModule {
 
@@ -41,12 +39,13 @@ public class TableExtractionModule extends AbstractModule {
 
 		// class bindings
 		bind(StatsKeeper.class).to(HashMapStats.class);
-		
+
 		String algorithmName = properties.getProperty("extractionAlgorithm");
 		if (algorithmName.equals("mh")
-				|| algorithmName.equals("MHExtractionAlgorithm"))
+				|| algorithmName.equals("MHExtractionAlgorithm")) {
 			bind(ExtractionAlgorithm.class).to(MHExtractionAlgorithm.class);
-		else
+		} else {
 			bind(ExtractionAlgorithm.class).to(BasicExtractionAlgorithm.class);
+		}
 	}
 }

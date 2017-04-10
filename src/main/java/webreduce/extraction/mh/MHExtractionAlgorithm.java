@@ -1,19 +1,12 @@
 package webreduce.extraction.mh;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-
+import com.google.common.base.Optional;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
 import webreduce.data.Dataset;
 import webreduce.data.TableType;
 import webreduce.extraction.DocumentMetadata;
@@ -23,9 +16,13 @@ import webreduce.extraction.basic.BasicExtractionAlgorithm;
 import webreduce.extraction.mh.tools.ClassificationResult;
 import webreduce.extraction.mh.tools.TableConvert;
 
-import com.google.common.base.Optional;
-import com.google.inject.Inject;
-import com.google.inject.name.Named;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 /*
  * Uses simple heuristics to separate data from layout tables in a given
@@ -36,18 +33,46 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 
 	protected static final int TABLE_MIN_ROWS = 2;
 	protected static final int TABLE_MIN_COLS = 2;
-
-	public static enum TABLE_COUNTERS {
-		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_OR_IRREGULAR_TABLES, RELATIONS_FOUND, NO_HEADERS
-	}
+	private static int NUM_RUNS = 50;
 	private final TableClassification tableClassifier;
 	private final TableConvert tableConverter;
 
 	@Inject
-	public MHExtractionAlgorithm(StatsKeeper stats, @Named("extractTopNTerms") boolean th_extract_terms, TableClassification tableClassifier) {
+	public MHExtractionAlgorithm(StatsKeeper stats,
+	                             @Named("extractTopNTerms") boolean th_extract_terms, TableClassification tableClassifier) {
 		super(stats, th_extract_terms);
 		this.tableClassifier = tableClassifier;
 		this.tableConverter = new TableConvert(TABLE_MIN_ROWS, TABLE_MIN_COLS);
+	}
+	
+	public static void main(String[] args) throws
+			IOException, InterruptedException {
+		TableClassification tableClassifier = new TableClassification("/SimpleCart_P1.mdl",
+				"/RandomForest_P2.mdl");
+		ExtractionAlgorithm ea = new MHExtractionAlgorithm(
+				new StatsKeeper.HashMapStats(), true, tableClassifier);
+		
+		for (String url : new String[]{
+				"http://en.wikipedia.org/wiki/List_of_countries_by_population",
+				"http://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)",
+				"http://en.wikipedia.org/wiki/BRIC"}) {
+			InputStream in = new URL(url).openStream();
+			
+			long startTime = System.nanoTime();
+			for (int i = 0; i < NUM_RUNS; i++) {
+				Document doc = Jsoup.parse(in, null, "");
+				DocumentMetadata dm = new DocumentMetadata(0, 0, "", "");
+				List<Dataset> result = ea.extract(doc, dm);
+				for (Dataset er : result) {
+					System.out.println(Arrays.deepToString(er.relation));
+					System.out.println(er.getHeaderPosition());
+				}
+			}
+			long endTime = System.nanoTime();
+			System.out.println("Time: "
+					+ (((float) (endTime - startTime)) / NUM_RUNS) / 1000000);
+//			System.out.println(ea.stats.statsAsMap().toString());
+		}
 	}
 
 	public List<Dataset> extract(Document doc, DocumentMetadata metadata) throws IOException,
@@ -57,7 +82,8 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 		String[] tags = null;
 		int count = -1;
 		// iterate tables tags; find relations
-		main_loop: for (Element table : doc.getElementsByTag("table")) {
+		main_loop:
+		for (Element table : doc.getElementsByTag("table")) {
 			// boolean isFiltered = false;
 			stats.reportProgress();
 			count += 1;
@@ -119,8 +145,9 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 			ds.termSet = tags;
 			ds.hasHeader = has_header;
 			Elements caption = table.select("caption");
-			if (caption.size() == 1)
+			if (caption.size() == 1) {
 				ds.setTitle(cleanCell(caption.get(0).text()));
+			}
 			ds.setPageTitle(doc.title());
 			stats.incCounter(TABLE_COUNTERS.RELATIONS_FOUND);
 			result.add(ds);
@@ -143,46 +170,20 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 			for (int colIndex = 0; colIndex < table[rowIndex].length; colIndex++) {
 				Element cell = table[rowIndex][colIndex];
 				String cellStr;
-				if (cell == null)
+				if (cell == null) {
 					cellStr = "";
-				else
+				} else {
 					cellStr = cleanCell(cell.text());
+				}
 				relation[colIndex][rowIndex] = cellStr;
 			}
 		}
 
 		return relation;
 	}
-
-	private static int NUM_RUNS = 50;
-
-	public static void main(String[] args) throws MalformedURLException,
-			IOException, InterruptedException {
-		TableClassification tableClassifier = new TableClassification("/SimpleCart_P1.mdl", "/RandomForest_P2.mdl");
-		ExtractionAlgorithm ea = new MHExtractionAlgorithm(
-				new StatsKeeper.HashMapStats(), true, tableClassifier);
-
-		for (String url : new String[] {
-				"http://en.wikipedia.org/wiki/List_of_countries_by_population",
-				"http://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)",
-				"http://en.wikipedia.org/wiki/BRIC" }) {
-			InputStream in = new URL(url).openStream();
-
-			long startTime = System.nanoTime();
-			for (int i = 0; i < NUM_RUNS; i++) {
-				Document doc = Jsoup.parse(in, null, "");
-				DocumentMetadata dm = new DocumentMetadata(0, 0, "", "");
-				List<Dataset> result = ea.extract(doc, dm);
-				for (Dataset er : result) {
-					 System.out.println(Arrays.deepToString(er.relation));
-					 System.out.println(er.getHeaderPosition());
-				}
-			}
-			long endTime = System.nanoTime();
-			System.out.println("Time: "
-					+ (((float) (endTime - startTime)) / NUM_RUNS) / 1000000);
-//			System.out.println(ea.stats.statsAsMap().toString());
-		}
+	
+	public enum TABLE_COUNTERS {
+		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_OR_IRREGULAR_TABLES, RELATIONS_FOUND, NO_HEADERS
 	}
 
 }

@@ -2,6 +2,7 @@ package webreduce.extraction;
 
 /* Intermediate product of the extraction process */
 public class DocumentMetadata {
+	
 	private long start;
 	private long end;
 	private String s3Link;
@@ -14,27 +15,35 @@ public class DocumentMetadata {
 		this.s3Link = s3Link;
 		this.url = url;
 	}
+	
 	public long getStart() {
 		return start;
 	}
+	
 	public void setStart(long start) {
 		this.start = start;
 	}
+	
 	public long getEnd() {
 		return end;
 	}
+	
 	public void setEnd(long end) {
 		this.end = end;
 	}
+	
 	public String getS3Link() {
 		return s3Link;
 	}
+	
 	public void setS3Link(String s3Link) {
 		this.s3Link = s3Link;
 	}
+	
 	public String getUrl() {
 		return url;
 	}
+	
 	public void setUrl(String url) {
 		this.url = url;
 	}

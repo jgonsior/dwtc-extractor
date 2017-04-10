@@ -1,12 +1,13 @@
 package webreduce.extraction.mh.tools;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
+import com.google.common.base.Optional;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import com.google.common.base.Optional;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
 
 public class TableConvert {
 
@@ -16,6 +17,38 @@ public class TableConvert {
 	public TableConvert(int minRows, int minCols) {
 		this.minRows = minRows;
 		this.minCols = minCols;
+	}
+	
+	// ONLY FOR TESTING PURPOSES
+	// prints out all leaf-tables as 2D arrays at a specified url
+	public static void main(String[] args) {
+		String url = "/Users/mahe/Desktop/testTable.htm";
+		InputStream in;
+		TableConvert tableConvert = new TableConvert(2, 2);
+		try {
+			in = new FileInputStream(url);
+			Document doc = Jsoup.parse(in, null, "");
+			
+			for (Element aTable : doc.getElementsByTag("table")) {
+				Elements subtables = aTable.getElementsByTag("table");
+				// the table tag of the table itself is always included in the subtable
+				// query result, so remove it
+				subtables.remove(aTable);
+				if (subtables.size() == 0) {
+					System.out.println("converting table...");
+					Optional<Element[][]> result = tableConvert.toTable(aTable);
+					if (result.isPresent()) {
+						tableConvert.printTable(result.get());
+					} else {
+						System.out.println("Could not convert table.");
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		
 	}
 
 	// converts a 'table'-DOM-Element to a 2D array of Elements representing
@@ -42,12 +75,14 @@ public class TableConvert {
 		for (int tr_idx = 0; tr_idx < tableHeight; tr_idx++) {
 			Elements tds = tableRows.get(tr_idx).select("td, th");
 			int td_size = tds.size();
-			if (td_size > tableWidth)
+			if (td_size > tableWidth) {
 				tableWidth = td_size;
+			}
 		}
-
-		if (tableHeight < 2 || tableWidth < 2)
+		
+		if (tableHeight < 2 || tableWidth < 2) {
 			return Optional.absent();
+		}
 
 		Element[][] result = new Element[tableHeight][tableWidth];
 
@@ -68,7 +103,7 @@ public class TableConvert {
 					// this will throw an IndexOutOfBounds exception if the table
 					// is malformed (i.e. invalid spans). Calling methods should
 					// catch those errors and ignore these tables
-					while(result[rowIndex][colIndex] != null) {
+					while (result[rowIndex][colIndex] != null) {
 						result[rowIndex][colIndex] = null;
 						colIndex++;
 					}
@@ -103,11 +138,13 @@ public class TableConvert {
 					// if rowspan > 1 then mark cells in following rows which are affected
 					if (rowspan > 1) {
 						for (int i = 1; i < rowspan; i++) {
-							if (i >= tableHeight) break; // ignore bad rowspans
+							if (i >= tableHeight) {
+								break; // ignore bad rowspans
+							}
 
 							// mark cell
 							org.jsoup.parser.Tag invalidTag = org.jsoup.parser.Tag.valueOf("p");
-							result[rowIndex+i][colIndex] = new Element(invalidTag, "");
+							result[rowIndex + i][colIndex] = new Element(invalidTag, "");
 						}
 					}
 
@@ -125,11 +162,13 @@ public class TableConvert {
 	}
 
 	public void printTable(Element[][] table) {
-		if (table == null) return;
+		if (table == null) {
+			return;
+		}
 
 		System.out.println(table[0][0].text());
-
-		int limiter = table[0].length*4+1;
+		
+		int limiter = table[0].length * 4 + 1;
 
 		for (int i = 0; i < limiter; i++) {
 			System.out.print("-");
@@ -152,36 +191,5 @@ public class TableConvert {
 			}
 			System.out.println();
 		}
-	}
-
-	// ONLY FOR TESTING PURPOSES
-	// prints out all leaf-tables as 2D arrays at a specified url
-	public static void main(String[] args) {
-		String url = "/Users/mahe/Desktop/testTable.htm";
-		InputStream in;
-		TableConvert tableConvert = new TableConvert(2, 2);
-		try {
-			in = new FileInputStream(url);;
-			Document doc = Jsoup.parse(in, null, "");
-
-			for (Element aTable : doc.getElementsByTag("table")) {
-				Elements subtables = aTable.getElementsByTag("table");
-				// the table tag of the table itself is always included in the subtable
-				// query result, so remove it
-				subtables.remove(aTable);
-				if(subtables.size() == 0) {
-					System.out.println("converting table...");
-					Optional<Element[][]> result = tableConvert.toTable(aTable);
-					if (result.isPresent())
-						tableConvert.printTable(result.get());
-					else
-						System.out.println("Could not convert table.");
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-
 	}
 }

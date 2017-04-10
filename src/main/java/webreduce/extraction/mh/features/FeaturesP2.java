@@ -5,15 +5,7 @@ package webreduce.extraction.mh.features;
  * (multiclass classification for non-layout tables)
  */
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.jsoup.nodes.Element;
-
 import webreduce.extraction.mh.tools.CellTools;
 import webreduce.extraction.mh.tools.ContentType;
 import webreduce.extraction.mh.tools.TableStats;
@@ -22,25 +14,46 @@ import weka.core.Attribute;
 import weka.core.FastVector;
 import weka.core.Instance;
 
+import java.util.*;
+
 public class FeaturesP2 {
-	
+
 	// most of the local features are calculated in batches for all rows/colums
 	// we need a whitelist to filter out those columns and rows we don't need
 	private static String featureWhiteList = "LOCAL_RATIO_IS_NUMBER_COL_0, AVG_CELL_LENGTH, LOCAL_RATIO_IS_NUMBER_COL_2, LOCAL_RATIO_COLON_ROW_1, LOCAL_RATIO_ANCHOR_ROW_2, LOCAL_LENGTH_VARIANCE_COL_2, LOCAL_AVG_LENGTH_ROW_0, LOCAL_AVG_LENGTH_ROW_2, LOCAL_RATIO_HEADER_ROW_0, CUMULATIVE_CONTENT_CONSISTENCY, STD_DEV_ROWS, RATIO_ALPHABETICAL, LOCAL_RATIO_COMMA_COL_0, LOCAL_RATIO_CONTAINS_NUMBER_ROW_1, LOCAL_RATIO_CONTAINS_NUMBER_ROW_0, STD_DEV_COLS, LOCAL_RATIO_COLON_COL_0, MAX_COLS, LOCAL_RATIO_CONTAINS_NUMBER_COL_2, LOCAL_RATIO_HEADER_COL_1, LOCAL_RATIO_HEADER_COL_2, LOCAL_RATIO_CONTAINS_NUMBER_COL_0, AVG_COLS";
-	
+
 	private ArrayList<AbstractTableListener> globalListeners;
 	private ArrayList<AbstractTableListener> localListeners;
 	private ArrayList<Attribute> attributeList;
-	
+
 	private FastVector attributeVector; // vector of all atrributes PLUS class attribute
 	private FastVector classAttrVector; // vector of strings of all possible class values
 	private Attribute classAttr;
+
+	public FeaturesP2() {
+		attributeList = new ArrayList<Attribute>();
+		attributeVector = new FastVector();
+		for (String s : FeaturesP2.getFeatureNames()) {
+			Attribute newAttr = new Attribute(s); // create new Feature with name from whitelist
+			attributeList.add(newAttr);
+			attributeVector.addElement(newAttr);
+		}
+
+		classAttrVector = new FastVector(5);
+		classAttrVector.addElement("LAYOUT");
+		classAttrVector.addElement("RELATION");
+		classAttrVector.addElement("ENTITY");
+		classAttrVector.addElement("MATRIX");
+		classAttrVector.addElement("NONE");
+		classAttr = new Attribute("CLASS", classAttrVector);
+
+		attributeVector.addElement(classAttr);
+	}
 	
 	public static List<String> getFeatureNames() {
 		return Arrays.asList(featureWhiteList.split(", "));
 	}
 	
-
 	// returns a FastVector containing all attributes plus
 	// the class attribute as the last element
 	public FastVector getAttrVector() {
@@ -52,33 +65,13 @@ public class FeaturesP2 {
 	public FastVector getClassVector() {
 		return classAttrVector;
 	}
-	
-	public FeaturesP2() {
-		attributeList = new ArrayList<Attribute>();
-		attributeVector = new FastVector();
-		for (String s : FeaturesP2.getFeatureNames()) {
-			Attribute newAttr = new Attribute(s); // create new Feature with name from whitelist
-			attributeList.add(newAttr);
-			attributeVector.addElement(newAttr);
-		}
-		
-		classAttrVector = new FastVector(5);
-		classAttrVector.addElement("LAYOUT");
-		classAttrVector.addElement("RELATION");
-		classAttrVector.addElement("ENTITY");
-		classAttrVector.addElement("MATRIX");
-		classAttrVector.addElement("NONE");
-		classAttr = new Attribute("CLASS", classAttrVector);
-		
-		attributeVector.addElement(classAttr);
-	}
-	
+
 	// returns an ArrayList of all attributes that
 	// are used for this feature phase
 	public ArrayList<Attribute> getAttrList() {
 		return attributeList;
 	}
-	
+
 	// adds all desired features to the computation list
 	public void initializeFeatures() {
 		// Add global features to computation list
@@ -91,65 +84,64 @@ public class FeaturesP2 {
 		globalListeners.add(new StdDevCols());
 		globalListeners.add(new ContentRatios());
 		globalListeners.add(new CumulativeContentTypeConsistency());
-		
+
 		// Add local features to computation list
 		localListeners = new ArrayList<AbstractTableListener>();
 		localListeners.add(new LocalAvgLength());
 		localListeners.add(new LocalContentRatios());
 		localListeners.add(new LocalLengthVariance());
 	}
-	
+
 	public Instance computeFeatures(Element[][] convertedTable) {
 		HashMap<String, Double> resultMap = new HashMap<String, Double>();
 		TableStats tStats = new TableStats(convertedTable[0].length, convertedTable.length);
-		
+
 		initializeFeatures();
-		
+
 		// GLOBAL FEATURES
-		
+
 		// initialization event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.start(tStats);
 		}
-		
+
 		for (tStats.rowIndex = 0; tStats.rowIndex < tStats.getTableHeight(); tStats.rowIndex++) {
 			for (tStats.colIndex = 0; tStats.colIndex < tStats.getTableWidth(); tStats.colIndex++) {
-				
+
 				// onCell event
 				for (AbstractTableListener listener : globalListeners) {
 					listener.computeCell(convertedTable[tStats.rowIndex][tStats.colIndex], tStats);
-				}	
-				
+				}
+
 			}
 
 		}
-		
+
 		// end event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.end();
 		}
-		
+
 		// compute results of all listeners and put them into the result map
 		for (AbstractTableListener listener : globalListeners) {
 			resultMap.putAll(listener.getResults());
 		}
-		
 
 		// LOCAL FEATURES
-		
+
 		// PER-ROW
 		// get the 2 first and last rows
-		int[] localRowIndexes = {0, 1, tStats.getTableHeight()-1};
-		
+		int[] localRowIndexes = {0, 1, tStats.getTableHeight() - 1};
+
 		for (int i = 0; i < localRowIndexes.length; i++) {
-			
+
 			int currentRowIndex = localRowIndexes[i];
-			
+
 			// initialization event
 			for (AbstractTableListener listener : localListeners) {
 				listener.start(tStats);
 			}
-			
+
 			// iterate cells within row
 			for (tStats.colIndex = 0; tStats.colIndex < tStats.getTableWidth(); tStats.colIndex++) {
 				// onCell event
@@ -157,13 +149,13 @@ public class FeaturesP2 {
 					listener.computeCell(convertedTable[currentRowIndex][tStats.colIndex], tStats);
 				}
 			}
-			
+
 			// onRowEnd event
 			for (AbstractTableListener listener : localListeners) {
 				listener.end();
 			}
 			
-			// compute results of all listeners, rename them and put them 
+			// compute results of all listeners, rename them and put them
 			// into the result map
 			for (AbstractTableListener listener : localListeners) {
 				HashMap<String, Double> results = listener.getResults();
@@ -172,14 +164,14 @@ public class FeaturesP2 {
 					// specific row of the current loop
 					resultMap.put(entry.getKey() + "_ROW_" + i, entry.getValue());
 				}
-				
+
 			}
 		}
-		
+
 		// PER-COL
 		// get the 2 first and last columns
-		int[] localColIndexes = {0, 1, tStats.getTableWidth()-1};
-		
+		int[] localColIndexes = {0, 1, tStats.getTableWidth() - 1};
+
 		for (int i = 0; i < localColIndexes.length; i++) {
 			
 			int currentColIndex = localColIndexes[i];
@@ -201,8 +193,8 @@ public class FeaturesP2 {
 			for (AbstractTableListener listener : localListeners) {
 				listener.end();
 			}
-	
-			// compute results of all listeners, rename them and put them 
+			
+			// compute results of all listeners, rename them and put them
 			// into the result map
 			for (AbstractTableListener listener : localListeners) {
 				HashMap<String, Double> results = listener.getResults();
@@ -216,7 +208,7 @@ public class FeaturesP2 {
 		}
 
 		// Create WEKA instance
-		
+
 //		Instance resultInstance = new Instance(featureCount);
 //		
 //		// only use features within whitelist
@@ -230,8 +222,7 @@ public class FeaturesP2 {
 		return Tools.createInstanceFromData(resultMap, attributeList, attributeVector);
 	}
 	
-		
- 
+	
 	// Features are implemented according to an Observer Pattern
 	public abstract class AbstractTableListener {
 		
@@ -267,7 +258,6 @@ public class FeaturesP2 {
 		public abstract HashMap<String, Double> getResults();
 	}
 	
-	
 	////
 	// GLOBAL FEATURES DEFINITION
 	///
@@ -280,15 +270,15 @@ public class FeaturesP2 {
 		}
 		
 		public void initialize(TableStats stats) {
-			
+		
 		}
 		
 		public void onCell(Element content, TableStats stats) {
-			
+		
 		}
 		
 		public void finalize() {
-			
+		
 		}
 		
 		public HashMap<String, Double> getResults() {
@@ -299,6 +289,7 @@ public class FeaturesP2 {
 	}
 	
 	public class MaxCols extends AbstractTableListener {
+		
 		private double maxCols;
 		
 		public MaxCols() {
@@ -310,11 +301,11 @@ public class FeaturesP2 {
 		}
 		
 		public void onCell(Element content, TableStats stats) {
-			
+		
 		}
 
 		public void finalize() {
-			
+		
 		}
 		
 		public HashMap<String, Double> getResults() {
@@ -325,6 +316,7 @@ public class FeaturesP2 {
 	}
 	
 	public class AvgCols extends AbstractTableListener {
+		
 		private int cellCount;
 		private double avgCols;
 		private int tableHeight;
@@ -356,6 +348,7 @@ public class FeaturesP2 {
 	}
 
 	public class AvgCellLength extends AbstractTableListener {
+		
 		private int cellCount;
 		private int totalLength;
 		private double avgLength;
@@ -389,6 +382,7 @@ public class FeaturesP2 {
 	}
 	
 	public class StdDevRows extends AbstractTableListener {
+		
 		private double stdDevRows;
 		private int[] rowNum;
 		
@@ -416,9 +410,9 @@ public class FeaturesP2 {
 			double avgRows = getAvgRows();
 			for (int colIndex = 0; colIndex < rowNum.length; colIndex++) {
 				double temp = rowNum[colIndex] - avgRows;
-				sum += (double) Math.pow(temp, 2);
+				sum += Math.pow(temp, 2);
 			}
-			stdDevRows = (double) Math.sqrt(sum / rowNum.length);
+			stdDevRows = Math.sqrt(sum / rowNum.length);
 		}
 		
 		private double getAvgRows() {
@@ -437,6 +431,7 @@ public class FeaturesP2 {
 	}
 	
 	public class StdDevCols extends AbstractTableListener {
+		
 		private double stdDevCols;
 		private int[] colNum;
 		
@@ -464,9 +459,9 @@ public class FeaturesP2 {
 			double avgCols = getAvgCols();
 			for (int rowIndex = 0; rowIndex < colNum.length; rowIndex++) {
 				double temp = colNum[rowIndex] - avgCols;
-				sum += (double) Math.pow(temp, 2);
+				sum += Math.pow(temp, 2);
 			}
-			stdDevCols = (double) Math.sqrt(sum / colNum.length);
+			stdDevCols = Math.sqrt(sum / colNum.length);
 		}
 		
 		private double getAvgCols() {
@@ -485,6 +480,7 @@ public class FeaturesP2 {
 	}
 	
 	public class AvgRows extends AbstractTableListener {
+		
 		private int cellCount;
 		private double avgRows;
 		private int tableWidth;
@@ -516,10 +512,11 @@ public class FeaturesP2 {
 	}
 
 	public class ContentRatios extends AbstractTableListener {
+		
 		private int cellCount, images, alphabetical, digits;
 		private double image_ratio, alphabetical_ratio,
-		digit_ratio;
-		
+				digit_ratio;
+
 		public ContentRatios() {
 			featureName = "GROUP_GLOBAL_CONTENT_RATIOS";
 		}
@@ -537,12 +534,15 @@ public class FeaturesP2 {
 				
 				ContentType ct = CellTools.getContentType(content);
 				
-				switch(ct) {
-					case IMAGE: images++;
+				switch (ct) {
+					case IMAGE:
+						images++;
 						break;
-					case ALPHABETICAL: alphabetical++;
+					case ALPHABETICAL:
+						alphabetical++;
 						break;
-					case DIGIT: digits++;
+					case DIGIT:
+						digits++;
 						break;
 					default:
 						break;
@@ -551,9 +551,9 @@ public class FeaturesP2 {
 		}
 		
 		public void finalize() {
-			image_ratio =			(cellCount > 0) ? ((double) images / (double) cellCount)		: 0.0;
-			alphabetical_ratio =	(cellCount > 0) ? ((double) alphabetical / (double) cellCount)	: 0.0;
-			digit_ratio =			(cellCount > 0) ? ((double) digits / (double) cellCount)		: 0.0;
+			image_ratio = (cellCount > 0) ? ((double) images / (double) cellCount) : 0.0;
+			alphabetical_ratio = (cellCount > 0) ? ((double) alphabetical / (double) cellCount) : 0.0;
+			digit_ratio = (cellCount > 0) ? ((double) digits / (double) cellCount) : 0.0;
 		}
 		
 		public HashMap<String, Double> getResults() {
@@ -563,14 +563,15 @@ public class FeaturesP2 {
 			result.put("RATIO_DIGIT", new Double(digit_ratio));
 			return result;
 		}
-	}	
-
+	}
+	
 	
 	public class CumulativeContentTypeConsistency extends AbstractTableListener {
+		
 		private double ctc_sum_r, ctc_r; // Cumulative Length Consistency of rows
 		private double ctc_sum_c, ctc_c; // Cumulative Length Consistency of columns
 		private double tableWidth, tableHeight;
-		private double ctc; 
+		private double ctc;
 
 		private ArrayList<ContentType> typesOfRow;
 		private ArrayList<ContentType>[] typesOfCols;
@@ -584,7 +585,7 @@ public class FeaturesP2 {
 			// typesOfRow is a temporary array, recreated for each row, that keeps track
 			// of each ContentType within the row
 			typesOfRow = new ArrayList<ContentType>();
-			tableWidth = stats.getTableWidth(); 
+			tableWidth = stats.getTableWidth();
 			tableHeight = stats.getTableHeight();
 			
 			// typesOfCols has one ArrayList-slot for each column in the table
@@ -599,7 +600,7 @@ public class FeaturesP2 {
 		// takes the ContentType enum's priority order into account
 		private ContentType getDominantType(List<ContentType> list) {
 			ContentType dominantType = ContentType.EMPTY;
-			HashMap<ContentType,Integer> frequencyMap = new HashMap<ContentType,Integer>();
+			HashMap<ContentType, Integer> frequencyMap = new HashMap<ContentType, Integer>();
 
 			// put all occurrences of ContentTypes into a map together with their frequency count
 			for (ContentType ct : list) {
@@ -626,7 +627,7 @@ public class FeaturesP2 {
 						dominantType = ct;
 					}
 				}
-			}		
+			}
 
 			return dominantType;
 		}
@@ -660,13 +661,12 @@ public class FeaturesP2 {
 			
 			/// COLS - handle column end
 			if (stats.rowIndex == stats.getTableHeight() - 1) { // last row = column end reached
-					
+				
 				int colIndex = stats.colIndex; // index of the current column
 				
 				// determine dominant content type for column
 				ContentType dominantType = getDominantType(typesOfCols[colIndex]);
 
-				
 				// compute the CTC for the current column
 				double sumD = 0.0;
 				for (ContentType ct : typesOfCols[colIndex]) {
@@ -692,21 +692,12 @@ public class FeaturesP2 {
 		}
 	}
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 	////
 	// LOCAL FEATURES DEFINITION
 	///
 	
 	public class LocalAvgLength extends AbstractTableListener {
+		
 		private ArrayList<Integer> cellLengths;
 		private double average;
 		
@@ -741,6 +732,7 @@ public class FeaturesP2 {
 	}
 	
 	public class LocalLengthVariance extends AbstractTableListener {
+		
 		private ArrayList<Integer> cellLengths;
 		private double average, variance;
 		
@@ -784,18 +776,19 @@ public class FeaturesP2 {
 	}
 	
 	public class LocalContentRatios extends AbstractTableListener {
-		private int cellCount, count_th, count_anchor, count_img, count_input, count_select,
-			 count_contains_number, count_is_number, count_colon, count_comma;
-		private double ratio_th, ratio_anchor, ratio_img, ratio_input, ratio_select,
-			ratio_contains_number, ratio_is_number, ratio_colon, ratio_comma;
 		
+		private int cellCount, count_th, count_anchor, count_img, count_input, count_select,
+				count_contains_number, count_is_number, count_colon, count_comma;
+		private double ratio_th, ratio_anchor, ratio_img, ratio_input, ratio_select,
+				ratio_contains_number, ratio_is_number, ratio_colon, ratio_comma;
+
 		public LocalContentRatios() {
 			featureName = "GROUP_LOCAL_CONTENT_RATIOS";
 		}
 		
 		public void initialize(TableStats stats) {
 			cellCount = count_th = count_anchor = count_img = count_input = count_select =
-					 count_contains_number = count_is_number = count_colon = count_comma = 0;
+					count_contains_number = count_is_number = count_colon = count_comma = 0;
 		}
 		
 		public void onCell(Element content, TableStats stats) {
@@ -839,15 +832,16 @@ public class FeaturesP2 {
 		}
 		
 		public void finalize() {
-			ratio_th =				(cellCount > 0) ? ((double) count_th / (double) cellCount)				: 0.0;
-			ratio_anchor =			(cellCount > 0) ? ((double) count_anchor / (double) cellCount)			: 0.0;
-			ratio_img =				(cellCount > 0) ? ((double) count_img / (double) cellCount)				: 0.0;
-			ratio_input =			(cellCount > 0) ? ((double) count_input / (double) cellCount)			: 0.0;
-			ratio_select =			(cellCount > 0) ? ((double) count_select / (double) cellCount)			: 0.0;
-			ratio_colon =			(cellCount > 0) ? ((double) count_colon / (double) cellCount)			: 0.0;
-			ratio_contains_number =	(cellCount > 0) ? ((double) count_contains_number / (double) cellCount)	: 0.0;
-			ratio_is_number =		(cellCount > 0) ? ((double) count_is_number / (double) cellCount)		: 0.0;
-			ratio_comma =			(cellCount > 0) ? ((double) count_comma / (double) cellCount)			: 0.0;
+			ratio_th = (cellCount > 0) ? ((double) count_th / (double) cellCount) : 0.0;
+			ratio_anchor = (cellCount > 0) ? ((double) count_anchor / (double) cellCount) : 0.0;
+			ratio_img = (cellCount > 0) ? ((double) count_img / (double) cellCount) : 0.0;
+			ratio_input = (cellCount > 0) ? ((double) count_input / (double) cellCount) : 0.0;
+			ratio_select = (cellCount > 0) ? ((double) count_select / (double) cellCount) : 0.0;
+			ratio_colon = (cellCount > 0) ? ((double) count_colon / (double) cellCount) : 0.0;
+			ratio_contains_number =
+					(cellCount > 0) ? ((double) count_contains_number / (double) cellCount) : 0.0;
+			ratio_is_number = (cellCount > 0) ? ((double) count_is_number / (double) cellCount) : 0.0;
+			ratio_comma = (cellCount > 0) ? ((double) count_comma / (double) cellCount) : 0.0;
 		}
 		
 		public HashMap<String, Double> getResults() {
@@ -865,5 +859,5 @@ public class FeaturesP2 {
 		}
 	}
 	
-
+	
 }
