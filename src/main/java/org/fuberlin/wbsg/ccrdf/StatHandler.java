@@ -10,41 +10,41 @@ import java.util.List;
 import java.util.Map;
 
 public interface StatHandler {
-
+	
 	void addStats(String key, Map<String, String> data);
-
+	
 	void flush();
 }
 
 class LoggingStatHandler implements StatHandler {
-
+	
 	private static Logger log = Logger.getLogger(LoggingStatHandler.class);
-
+	
 	@Override
 	public void addStats(String key, Map<String, String> data) {
 		log.debug(key + ": " + data);
 	}
-
+	
 	@Override
 	public void flush() {
 	}
-
+	
 }
 
 class AmazonStatHandler implements StatHandler {
-
+	
 	private static final int CACHE_SIZE = 24;
 	private static final int MAX_TRIES = 20;
 	private static Logger log = Logger.getLogger(AmazonStatHandler.class);
 	private AmazonSimpleDBClient client;
 	private String domain;
-
+	
 	private Map<String, Map<String, String>> cache = new HashMap<String, Map<String, String>>();
-
+	
 	public AmazonStatHandler(AmazonSimpleDBClient client, String domain) {
 		this.client = client;
 		this.domain = domain;
-
+		
 		int tries = 0;
 		do {
 			tries++;
@@ -65,9 +65,9 @@ class AmazonStatHandler implements StatHandler {
 			}
 		} while (tries < MAX_TRIES);
 		throw new RuntimeException("Unable to connect to SDB " + domain);
-
+		
 	}
-
+	
 	@Override
 	public void addStats(String key, Map<String, String> data) {
 		cache.put(key, data);
@@ -75,16 +75,16 @@ class AmazonStatHandler implements StatHandler {
 			flush();
 		}
 	}
-
+	
 	@Override
 	public void flush() {
 		if (cache.size() < 1) {
 			return;
 		}
 		BatchPutAttributesRequest req = new BatchPutAttributesRequest();
-
+		
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>(CACHE_SIZE);
-
+		
 		for (Map.Entry<String, Map<String, String>> cacheEntry : cache
 				.entrySet()) {
 			ReplaceableItem entry = new ReplaceableItem(cacheEntry.getKey());
@@ -100,7 +100,7 @@ class AmazonStatHandler implements StatHandler {
 		}
 		req.setDomainName(domain);
 		req.setItems(items);
-
+		
 		int tries = 0;
 		do {
 			tries++;

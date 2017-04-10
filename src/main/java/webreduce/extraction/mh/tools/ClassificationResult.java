@@ -6,10 +6,10 @@ import java.util.Arrays;
 
 
 public class ClassificationResult {
-
+	
 	private TableType resultType;
 	private double[] distribution1, distribution2;
-
+	
 	public ClassificationResult(TableType tt, double[] dist1, double[] dist2) {
 		this.resultType = tt;
 		distribution1 = Arrays.copyOf(dist1, dist1.length);

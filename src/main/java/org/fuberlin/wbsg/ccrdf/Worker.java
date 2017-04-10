@@ -36,7 +36,7 @@ import java.util.zip.GZIPOutputStream;
  * from the queue and another node can have a shot.
  */
 public class Worker extends ProcessingNode {
-
+	
 	private static Logger log = Logger.getLogger(Worker.class);
 	private static Injector injector = Guice.createInjector(new TableExtractionModule());
 	protected final String dataBucket = getOrCry("dataBucket");
@@ -44,18 +44,18 @@ public class Worker extends ProcessingNode {
 	private final int retryLimit = Integer.parseInt(getOrCry("jobRetryLimit"));
 	private StatHandler dataStatHandler = null;
 	private StatHandler errorStatHandler = null;
-
+	
 	private static String getStackTrace(Throwable aThrowable) {
 		final Writer result = new StringWriter();
 		final PrintWriter printWriter = new PrintWriter(result);
 		aThrowable.printStackTrace(printWriter);
 		return result.toString();
 	}
-
+	
 	public static void main(String[] args) {
 		new ThreadGuard(WorkerThread.class).start();
 	}
-
+	
 	public StatHandler getDataStatHandler() {
 		if (dataStatHandler == null) {
 			dataStatHandler = new AmazonStatHandler(getDbClient(),
@@ -63,7 +63,7 @@ public class Worker extends ProcessingNode {
 		}
 		return dataStatHandler;
 	}
-
+	
 	public StatHandler getErrorStatHandler() {
 		if (errorStatHandler == null) {
 			errorStatHandler = new AmazonStatHandler(getDbClient(),
@@ -73,12 +73,12 @@ public class Worker extends ProcessingNode {
 	}
 	
 	private static class RecordWithOffsetsAndURL {
-
+		
 		public byte[] bytes;
 		public long start;
 		public long end;
 		public String url;
-
+		
 		public RecordWithOffsetsAndURL(byte[] bytes, long start, long end, String url) {
 			super();
 			this.bytes = bytes;
@@ -89,25 +89,25 @@ public class Worker extends ProcessingNode {
 	}
 	
 	public static class WorkerThread extends Thread {
-
+		
 		private static final String WARC_TARGET_URI = "WARC-Target-URI";
 		int timeLimit = 0;
 		private Timer timer = new Timer();
 		
 		public WorkerThread() {
 		}
-
+		
 		public WorkerThread(int timeLimitMsec) {
 			this();
 			this.timeLimit = timeLimitMsec;
 		}
-
+		
 		public void run() {
 			Worker worker = new Worker();
 			if (timeLimit < 1) {
 				timeLimit = Integer.parseInt(worker.getOrCry("jobTimeLimit")) * 1000;
 			}
-
+			
 			while (true) {
 				timer = new Timer();
 				final WorkerThread t = this;
@@ -118,9 +118,9 @@ public class Worker extends ProcessingNode {
 						t.interrupt();
 					}
 				}, timeLimit);
-
+				
 				String inputFileKey = "";
-
+				
 				try {
 					// receive task message from queue
 					ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(
@@ -134,25 +134,25 @@ public class Worker extends ProcessingNode {
 						continue;
 					}
 					Message jobMessage = queueRes.getMessages().get(0);
-
+					
 					/**
 					 * messages which went back to the queue more than the
 					 * amount of times defined in the configuration entry
 					 * "jobRetryLimit" are discarded, probably contain nasty
 					 * data we cannot parse.
 					 */
-
+					
 					if (Integer.parseInt(jobMessage.getAttributes().get(
 							"ApproximateReceiveCount")) > worker.retryLimit) {
 						log.warn("Discarding message " + jobMessage.getBody());
 						worker.getQueue().deleteMessage(
 								new DeleteMessageRequest(worker.getQueueUrl(),
 										jobMessage.getReceiptHandle()));
-
+						
 						// store this information in sdb
 						Map<String, String> statData = new HashMap<String, String>();
 						statData.put("message", "Message Discarded");
-
+						
 						try {
 							statData.put("node", InetAddress.getLocalHost()
 									.getHostName());
@@ -162,40 +162,40 @@ public class Worker extends ProcessingNode {
 						statData.put("file", jobMessage.getBody());
 						statData.put("datetime", Calendar.getInstance()
 								.getTime().toString());
-
+						
 						worker.getErrorStatHandler().addStats(
 								UUID.randomUUID().toString(), statData);
 						worker.getErrorStatHandler().flush();
 						continue;
 					}
-
+					
 					/**
 					 * retrieve data file from s3, and unpack it using gzip
 					 */
 					inputFileKey = jobMessage.getBody();
 					log.info("Now working on " + inputFileKey);
-
+					
 					/**
 					 * get file from s3 and process with zipped arc.
 					 */
 					S3Object inputObject = worker.getStorage().getObject(
 							worker.dataBucket, inputFileKey);
-
+					
 					/**
 					 * Read all page entries from file and run extractor on them
 					 */
-
+					
 					log.info("Extracting data from " + inputFileKey + " ...");
 					WarcReader warcReader = WarcReaderFactory
 							.getReaderCompressed(inputObject
 									.getDataInputStream());
-
+					
 					long pagesTotal = 0;
 					long pagesErrors = 0;
 					long start = System.currentTimeMillis();
-
+					
 					ExtractionAlgorithm ea = injector.getInstance(ExtractionAlgorithm.class);
-
+					
 					// read all entries in the ARC file
 					RecordWithOffsetsAndURL item;
 					item = getNextResponseRecord(warcReader);
@@ -239,13 +239,13 @@ public class Worker extends ProcessingNode {
 						item = getNextResponseRecord(warcReader);
 					}
 					warcReader.close();
-
+					
 					// upload result to S3
 					upload(worker, inputFileKey, result);
-
+					
 					double duration = (System.currentTimeMillis() - start) / 1000.0;
 					double rate = (pagesTotal * 1.0) / duration;
-
+					
 					// create data file statistics
 					Map<String, String> dataStats = new HashMap<String, String>();
 					for (Map.Entry<String, Integer> entry : ea.getStatsKeeper()
@@ -257,11 +257,11 @@ public class Worker extends ProcessingNode {
 					dataStats.put("rate", Double.toString(rate));
 					dataStats.put("pagesTotal", Long.toString(pagesTotal));
 					dataStats.put("pagesErrors", Long.toString(pagesErrors));
-
+					
 					log.info("Extracted data from " + inputFileKey
 							+ " - parsed " + pagesTotal + " pages in "
 							+ duration + " seconds, " + rate + " pages/sec");
-
+					
 					/**
 					 * Create overall statistics for this data file
 					 */
@@ -269,12 +269,12 @@ public class Worker extends ProcessingNode {
 							Long.toString(inputObject.getContentLength()));
 					worker.getDataStatHandler().addStats(inputFileKey,
 							dataStats);
-
+					
 					/**
 					 * force statistics being persisted
 					 */
 					worker.getDataStatHandler().flush();
-
+					
 					/**
 					 * remove message from queue. If an Exception is thrown or
 					 * the node dies before finishing its task, this does not
@@ -283,16 +283,16 @@ public class Worker extends ProcessingNode {
 					worker.getQueue().deleteMessage(
 							new DeleteMessageRequest(worker.getQueueUrl(),
 									jobMessage.getReceiptHandle()));
-
+					
 					log.info("Finished processing file " + inputFileKey);
-
+					
 				} catch (Exception e) {
 					log.warn("Unable to finish processing ("
 							+ e.getClass().getSimpleName() + ": "
 							+ e.getMessage() + ")");
 					e.printStackTrace();
 					log.warn("Stracktrace", e.fillInStackTrace());
-
+					
 					// put error information into sdb for later analyis
 					Map<String, String> statData = new HashMap<String, String>();
 					statData.put("exception", e.getClass().getSimpleName());
@@ -304,7 +304,7 @@ public class Worker extends ProcessingNode {
 					String st = Worker.getStackTrace(e);
 					statData.put("stacktrace",
 							st.substring(0, Math.min(1024, st.length())));
-
+					
 					try {
 						statData.put("node", InetAddress.getLocalHost()
 								.getHostName());
@@ -314,18 +314,18 @@ public class Worker extends ProcessingNode {
 					statData.put("file", inputFileKey);
 					statData.put("datetime", Calendar.getInstance().getTime()
 							.toString());
-
+					
 					worker.getErrorStatHandler().addStats(
 							UUID.randomUUID().toString(), statData);
 					worker.getErrorStatHandler().flush();
-
+					
 				}
-
+				
 				// on failures sleep a bit
 				timer.cancel();
 			}
 		}
-
+		
 		private RecordWithOffsetsAndURL getNextResponseRecord(WarcReader warcReader)
 				throws IOException {
 			WarcRecord wr;
@@ -350,7 +350,7 @@ public class Worker extends ProcessingNode {
 				}
 			}
 		}
-
+		
 		private void upload(Worker worker, String inputFileKey,
 		                    Iterable<Dataset> results) throws IOException,
 				S3ServiceException, NoSuchAlgorithmException {
@@ -380,27 +380,27 @@ public class Worker extends ProcessingNode {
 				tmpFile.delete();
 			}
 		}
-
+		
 		private String makeOutputFileKey(String inputFileKey) {
 			int idx = inputFileKey.indexOf(".warc");
 			String s = inputFileKey.substring(0, idx) + ".json.gz";
 			return s;
 		}
 	}
-
+	
 	public static class ThreadGuard extends Thread {
-
+		
 		private List<Thread> threads = new ArrayList<Thread>();
 		private int threadLimit = Runtime.getRuntime().availableProcessors();
 		private int threadSerial = 0;
 		private int waitTimeSeconds = 1;
-
+		
 		private Class<? extends Thread> threadClass;
-
+		
 		public ThreadGuard(Class<? extends Thread> threadClass) {
 			this.threadClass = threadClass;
 		}
-
+		
 		public void run() {
 			while (true) {
 				List<Thread> threadsCopy = new ArrayList<Thread>(threads);
@@ -424,7 +424,7 @@ public class Worker extends ProcessingNode {
 						log.warn("Failed to start new Thread of class "
 								+ threadClass);
 					}
-
+					
 				}
 				try {
 					Thread.sleep(waitTimeSeconds * 1000);
@@ -434,5 +434,5 @@ public class Worker extends ProcessingNode {
 			}
 		}
 	}
-
+	
 }

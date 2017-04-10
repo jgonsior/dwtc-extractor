@@ -35,7 +35,7 @@ import java.util.Set;
  *
  */
 public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
-
+	
 	protected static final int TABLE_MIN_COLS = 2;
 	protected static final double TABLE_MAX_SPARSENESS = 0.49;
 	protected static final double TABLE_MAX_LINKS = 0.51;
@@ -55,7 +55,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	protected boolean extract_part_content;
 	protected boolean save_reference;
 	protected LuceneNormalizer termExtractor;
-
+	
 	@Inject
 	public BasicExtractionAlgorithm(StatsKeeper stats,
 	                                @Named("extractTopNTerms") boolean th_extract_terms) {
@@ -101,7 +101,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 			// System.out.println(ea.stats.statsAsMap().toString());
 		}
 	}
-
+	
 	/* (non-Javadoc)
 	 * @see webreduce.extraction.ExtractionAlgorithm#extract(org.jsoup.nodes.Document, webreduce.datastructures.DocumentMetadata)
 	 */
@@ -119,7 +119,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 			stats.reportProgress();
 			count += 1;
 			stats.incCounter(TABLE_COUNTERS.TABLES_FOUND);
-
+			
 			// remove tables inside forms
 			for (Element p : table.parents()) {
 				if (p.tagName().equals("form")) {
@@ -127,7 +127,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 					continue main_loop;
 				}
 			}
-
+			
 			// remove table with sub-tables
 			Elements subTables = table.getElementsByTag("table");
 			subTables.remove(table);
@@ -135,7 +135,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				stats.incCounter(TABLE_COUNTERS.NON_LEAF_TABLES);
 				continue;
 			}
-
+			
 			// remove tables with less than N rows
 			Elements trs = table.getElementsByTag("tr");
 			if (trs.size() < TABLE_MIN_ROWS) {
@@ -169,7 +169,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				stats.incCounter(TABLE_COUNTERS.NON_REGULAR_TABLES);
 				continue;
 			}
-
+			
 			// eliminate tables with "rowspan" or "colspan" for now
 			Elements colSpans = table.select("td[colspan], th[colspan]");
 			Elements rowSpans = table.select("td[rowspan], th[rowspan]");
@@ -177,7 +177,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				stats.incCounter(TABLE_COUNTERS.SPANNING_TD);
 				continue;
 			}
-
+			
 			// there should be header cells
 			Boolean has_header = true;
 			Elements headerCells = table.select("th");
@@ -191,7 +191,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				continue;
 			}
 			Dataset er = r.get();
-
+			
 			// average length of first row
 			String[] firstRow = er.getAttributes();
 			double firstRowLengthSum = 0.0;
@@ -206,13 +206,13 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				stats.incCounter(TABLE_COUNTERS.LONG_ATTRIBUTE_NAMES);
 				continue;
 			}
-
+			
 			er.tableNum = count;
 			er.s3Link = metadata.getS3Link();
 			er.recordOffset = metadata.getStart();
 			er.recordEndOffset = metadata.getEnd();
 			er.url = metadata.getUrl();
-
+			
 			if (tags == null && extract_terms) {
 				String bodyContent = doc.select("body").text();
 				Set<String> tagSet = termExtractor.topNTerms(bodyContent, 100);
@@ -231,7 +231,7 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		}
 		return result;
 	}
-
+	
 	protected Optional<Dataset> doExtract(Element table, Elements trs,
 	                                      int mostFrequentColCount) {
 		// remove sparse tables (more than X% null cells)
@@ -239,10 +239,10 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		Optional<Dataset> r = asRelation(trs, mostFrequentColCount,
 				((int) (TABLE_MAX_SPARSENESS * tableSize)),
 				((int) (TABLE_MAX_LINKS * tableSize)));
-
+		
 		return r;
 	}
-
+	
 	protected Optional<Dataset> asRelation(Elements input, int numCols,
 	                                       int nullLimit, int linkLimit) {
 		int nullCounter = 0;
@@ -282,13 +282,13 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		result.headerPosition = headerPosition(input);
 		return Optional.of(result);
 	}
-
+	
 	protected HeaderPosition headerPosition(Elements input) {
 		// header in firstRow
 		boolean fr = true;
 		// header in firstCol
 		boolean fc = true;
-
+		
 		Elements firstRow = input.get(0).children();
 		int rowLength = firstRow.size();
 		for (int i = 1; i < rowLength; i++) {
@@ -296,9 +296,9 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				fr = false;
 				break;
 			}
-
+			
 		}
-
+		
 		int numRows = input.size();
 		for (int i = 1; i < numRows; i++) {
 			Elements tds = input.get(i).children();
@@ -307,9 +307,9 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 				fc = false;
 				break;
 			}
-
+			
 		}
-
+		
 		HeaderPosition result = null;
 		if (fr && fc) {
 			result = HeaderPosition.MIXED;
@@ -320,10 +320,10 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 		} else {
 			result = HeaderPosition.NONE;
 		}
-
+		
 		return result;
 	}
-
+	
 	/* (non-Javadoc)
 	 * @see webreduce.extraction.ExtractionAlgorithm#getStatsKeeper()
 	 */
@@ -335,5 +335,5 @@ public class BasicExtractionAlgorithm implements ExtractionAlgorithm {
 	public enum TABLE_COUNTERS {
 		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_TABLES, RELATIONS_FOUND, SPARSE_TABLE, LINK_TABLE, CALENDAR_FOUND, NON_REGULAR_TABLES, LANGDETECT_EXCEPTION, ENGLISH, NON_ENGLISH, TO_MANY_BADWORDS, SPANNING_TD, NO_HEADERS, MORE_THAN_ONE_HEADER, SHORT_ATTRIBUTE_NAMES, LONG_ATTRIBUTE_NAMES,
 	}
-
+	
 }

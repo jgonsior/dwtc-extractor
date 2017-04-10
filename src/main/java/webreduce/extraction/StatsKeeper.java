@@ -8,17 +8,17 @@ import java.util.Map;
  * a HashMap which is later written to Amazon SimpleDB.
  */
 public abstract class StatsKeeper {
-
+	
 	public abstract void incCounter(Enum<?> counter);
 	
 	public abstract Map<String, Integer> statsAsMap();
-
+	
 	public abstract void reportProgress();
-
+	
 	public static class HashMapStats extends StatsKeeper {
-
+		
 		protected HashMap<String, Integer> counters = new HashMap<String, Integer>();
-
+		
 		@Override
 		public void incCounter(Enum<?> counter) {
 			if (counters.containsKey(counter.name())) {
@@ -28,15 +28,15 @@ public abstract class StatsKeeper {
 				counters.put(counter.name(), 1);
 			}
 		}
-
+		
 		@Override
 		public void reportProgress() {
 		}
-
+		
 		public Map<String, Integer> statsAsMap() {
 			return counters;
 		}
-
+		
 		public void addMap(HashMap<String, Integer> addmap) {
 			for (Map.Entry<String, Integer> e : addmap.entrySet()) {
 				if (this.counters.containsKey(e.getKey())) {
@@ -47,21 +47,21 @@ public abstract class StatsKeeper {
 			}
 		}
 	}
-
+	
 	public static class NullStats extends StatsKeeper {
-
+		
 		@Override
 		public void incCounter(Enum<?> counter) {
 		}
-
+		
 		@Override
 		public void reportProgress() {
 		}
-
+		
 		@Override
 		public Map<String, Integer> statsAsMap() {
 			return null;
 		}
-
+		
 	}
 }

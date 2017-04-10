@@ -18,20 +18,20 @@ import java.util.Set;
  * Used for extracting normalized document terms.
  */
 public class LuceneNormalizer {
-
+	
 	protected int minTermLength;
 	protected Set<String> stopWords;
 	Analyzer analyzer;
-
+	
 	public LuceneNormalizer() {
 		this.minTermLength = 0;
 		analyzer = new CustomAnalyzer();
 	}
-
-
+	
+	
 	public Set<String> setOfTerms(String phrase) throws IOException {
 		Set<String> terms = new HashSet<String>();
-
+		
 		TokenStream ts;
 		CharTermAttribute cta;
 		
@@ -46,10 +46,10 @@ public class LuceneNormalizer {
 		}
 		ts.end();
 		ts.close();
-
+		
 		return terms;
 	}
-
+	
 	public Set<String> topNTerms(String phrase, int topN) throws IOException {
 		Set<String> result = new HashSet<String>();
 		Multiset<String> terms = HashMultiset.create();
@@ -68,7 +68,7 @@ public class LuceneNormalizer {
 		}
 		ts.end();
 		ts.close();
-
+		
 		terms = Multisets.copyHighestCountFirst(terms);
 		Iterator<String> iter = terms.elementSet().iterator();
 		while (iter.hasNext()) {

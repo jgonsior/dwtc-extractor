@@ -17,19 +17,19 @@ import weka.core.Instance;
 import java.util.*;
 
 public class FeaturesP2 {
-
+	
 	// most of the local features are calculated in batches for all rows/colums
 	// we need a whitelist to filter out those columns and rows we don't need
 	private static String featureWhiteList = "LOCAL_RATIO_IS_NUMBER_COL_0, AVG_CELL_LENGTH, LOCAL_RATIO_IS_NUMBER_COL_2, LOCAL_RATIO_COLON_ROW_1, LOCAL_RATIO_ANCHOR_ROW_2, LOCAL_LENGTH_VARIANCE_COL_2, LOCAL_AVG_LENGTH_ROW_0, LOCAL_AVG_LENGTH_ROW_2, LOCAL_RATIO_HEADER_ROW_0, CUMULATIVE_CONTENT_CONSISTENCY, STD_DEV_ROWS, RATIO_ALPHABETICAL, LOCAL_RATIO_COMMA_COL_0, LOCAL_RATIO_CONTAINS_NUMBER_ROW_1, LOCAL_RATIO_CONTAINS_NUMBER_ROW_0, STD_DEV_COLS, LOCAL_RATIO_COLON_COL_0, MAX_COLS, LOCAL_RATIO_CONTAINS_NUMBER_COL_2, LOCAL_RATIO_HEADER_COL_1, LOCAL_RATIO_HEADER_COL_2, LOCAL_RATIO_CONTAINS_NUMBER_COL_0, AVG_COLS";
-
+	
 	private ArrayList<AbstractTableListener> globalListeners;
 	private ArrayList<AbstractTableListener> localListeners;
 	private ArrayList<Attribute> attributeList;
-
+	
 	private FastVector attributeVector; // vector of all atrributes PLUS class attribute
 	private FastVector classAttrVector; // vector of strings of all possible class values
 	private Attribute classAttr;
-
+	
 	public FeaturesP2() {
 		attributeList = new ArrayList<Attribute>();
 		attributeVector = new FastVector();
@@ -38,7 +38,7 @@ public class FeaturesP2 {
 			attributeList.add(newAttr);
 			attributeVector.addElement(newAttr);
 		}
-
+		
 		classAttrVector = new FastVector(5);
 		classAttrVector.addElement("LAYOUT");
 		classAttrVector.addElement("RELATION");
@@ -46,7 +46,7 @@ public class FeaturesP2 {
 		classAttrVector.addElement("MATRIX");
 		classAttrVector.addElement("NONE");
 		classAttr = new Attribute("CLASS", classAttrVector);
-
+		
 		attributeVector.addElement(classAttr);
 	}
 	
@@ -65,13 +65,13 @@ public class FeaturesP2 {
 	public FastVector getClassVector() {
 		return classAttrVector;
 	}
-
+	
 	// returns an ArrayList of all attributes that
 	// are used for this feature phase
 	public ArrayList<Attribute> getAttrList() {
 		return attributeList;
 	}
-
+	
 	// adds all desired features to the computation list
 	public void initializeFeatures() {
 		// Add global features to computation list
@@ -84,64 +84,64 @@ public class FeaturesP2 {
 		globalListeners.add(new StdDevCols());
 		globalListeners.add(new ContentRatios());
 		globalListeners.add(new CumulativeContentTypeConsistency());
-
+		
 		// Add local features to computation list
 		localListeners = new ArrayList<AbstractTableListener>();
 		localListeners.add(new LocalAvgLength());
 		localListeners.add(new LocalContentRatios());
 		localListeners.add(new LocalLengthVariance());
 	}
-
+	
 	public Instance computeFeatures(Element[][] convertedTable) {
 		HashMap<String, Double> resultMap = new HashMap<String, Double>();
 		TableStats tStats = new TableStats(convertedTable[0].length, convertedTable.length);
-
+		
 		initializeFeatures();
-
+		
 		// GLOBAL FEATURES
-
+		
 		// initialization event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.start(tStats);
 		}
-
+		
 		for (tStats.rowIndex = 0; tStats.rowIndex < tStats.getTableHeight(); tStats.rowIndex++) {
 			for (tStats.colIndex = 0; tStats.colIndex < tStats.getTableWidth(); tStats.colIndex++) {
-
+				
 				// onCell event
 				for (AbstractTableListener listener : globalListeners) {
 					listener.computeCell(convertedTable[tStats.rowIndex][tStats.colIndex], tStats);
 				}
-
+				
 			}
-
+			
 		}
-
+		
 		// end event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.end();
 		}
-
+		
 		// compute results of all listeners and put them into the result map
 		for (AbstractTableListener listener : globalListeners) {
 			resultMap.putAll(listener.getResults());
 		}
-
+		
 		// LOCAL FEATURES
-
+		
 		// PER-ROW
 		// get the 2 first and last rows
 		int[] localRowIndexes = {0, 1, tStats.getTableHeight() - 1};
-
+		
 		for (int i = 0; i < localRowIndexes.length; i++) {
-
+			
 			int currentRowIndex = localRowIndexes[i];
-
+			
 			// initialization event
 			for (AbstractTableListener listener : localListeners) {
 				listener.start(tStats);
 			}
-
+			
 			// iterate cells within row
 			for (tStats.colIndex = 0; tStats.colIndex < tStats.getTableWidth(); tStats.colIndex++) {
 				// onCell event
@@ -149,7 +149,7 @@ public class FeaturesP2 {
 					listener.computeCell(convertedTable[currentRowIndex][tStats.colIndex], tStats);
 				}
 			}
-
+			
 			// onRowEnd event
 			for (AbstractTableListener listener : localListeners) {
 				listener.end();
@@ -164,14 +164,14 @@ public class FeaturesP2 {
 					// specific row of the current loop
 					resultMap.put(entry.getKey() + "_ROW_" + i, entry.getValue());
 				}
-
+				
 			}
 		}
-
+		
 		// PER-COL
 		// get the 2 first and last columns
 		int[] localColIndexes = {0, 1, tStats.getTableWidth() - 1};
-
+		
 		for (int i = 0; i < localColIndexes.length; i++) {
 			
 			int currentColIndex = localColIndexes[i];
@@ -206,7 +206,7 @@ public class FeaturesP2 {
 				
 			}
 		}
-
+		
 		// Create WEKA instance
 
 //		Instance resultInstance = new Instance(featureCount);
@@ -303,7 +303,7 @@ public class FeaturesP2 {
 		public void onCell(Element content, TableStats stats) {
 		
 		}
-
+		
 		public void finalize() {
 		
 		}
@@ -346,7 +346,7 @@ public class FeaturesP2 {
 			return result;
 		}
 	}
-
+	
 	public class AvgCellLength extends AbstractTableListener {
 		
 		private int cellCount;
@@ -510,13 +510,13 @@ public class FeaturesP2 {
 			return result;
 		}
 	}
-
+	
 	public class ContentRatios extends AbstractTableListener {
 		
 		private int cellCount, images, alphabetical, digits;
 		private double image_ratio, alphabetical_ratio,
 				digit_ratio;
-
+		
 		public ContentRatios() {
 			featureName = "GROUP_GLOBAL_CONTENT_RATIOS";
 		}
@@ -572,10 +572,10 @@ public class FeaturesP2 {
 		private double ctc_sum_c, ctc_c; // Cumulative Length Consistency of columns
 		private double tableWidth, tableHeight;
 		private double ctc;
-
+		
 		private ArrayList<ContentType> typesOfRow;
 		private ArrayList<ContentType>[] typesOfCols;
-
+		
 		public CumulativeContentTypeConsistency() {
 			featureName = "CUMULATIVE_CONTENT_CONSISTENCY";
 		}
@@ -601,7 +601,7 @@ public class FeaturesP2 {
 		private ContentType getDominantType(List<ContentType> list) {
 			ContentType dominantType = ContentType.EMPTY;
 			HashMap<ContentType, Integer> frequencyMap = new HashMap<ContentType, Integer>();
-
+			
 			// put all occurrences of ContentTypes into a map together with their frequency count
 			for (ContentType ct : list) {
 				if (!frequencyMap.containsKey(ct)) {
@@ -628,10 +628,10 @@ public class FeaturesP2 {
 					}
 				}
 			}
-
+			
 			return dominantType;
 		}
-
+		
 		public void onCell(Element content, TableStats stats) {
 			
 			// every cell that is non-empty
@@ -643,7 +643,7 @@ public class FeaturesP2 {
 			
 			/// ROWS - handle row end
 			if (stats.colIndex == stats.getTableWidth() - 1) { // last column = row end reached
-
+				
 				// determine dominant type for row
 				ContentType dominantType = getDominantType(typesOfRow);
 				
@@ -655,7 +655,7 @@ public class FeaturesP2 {
 				}
 				ctc_sum_r += sumD;
 				typesOfRow.clear();
-
+				
 			}
 			/// ROWS.END
 			
@@ -666,7 +666,7 @@ public class FeaturesP2 {
 				
 				// determine dominant content type for column
 				ContentType dominantType = getDominantType(typesOfCols[colIndex]);
-
+				
 				// compute the CTC for the current column
 				double sumD = 0.0;
 				for (ContentType ct : typesOfCols[colIndex]) {
@@ -781,7 +781,7 @@ public class FeaturesP2 {
 				count_contains_number, count_is_number, count_colon, count_comma;
 		private double ratio_th, ratio_anchor, ratio_img, ratio_input, ratio_select,
 				ratio_contains_number, ratio_is_number, ratio_colon, ratio_comma;
-
+		
 		public LocalContentRatios() {
 			featureName = "GROUP_LOCAL_CONTENT_RATIOS";
 		}

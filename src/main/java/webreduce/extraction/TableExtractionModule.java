@@ -13,9 +13,9 @@ import java.io.InputStream;
 import java.util.Properties;
 
 public class TableExtractionModule extends AbstractModule {
-
+	
 	private Properties properties;
-
+	
 	@Override
 	protected void configure() {
 		Properties defaults = new Properties();
@@ -23,7 +23,7 @@ public class TableExtractionModule extends AbstractModule {
 		defaults.setProperty("extractionAlgorithm", "mh");
 		defaults.setProperty("phase1ModelPath", "/SimpleCart_P1.mdl");
 		defaults.setProperty("phase2ModelPath", "/RandomForest_P2.mdl");
-
+		
 		properties = new Properties(defaults);
 		try {
 			InputStream pStream = ProcessingNode.class
@@ -36,10 +36,10 @@ public class TableExtractionModule extends AbstractModule {
 		} catch (IOException e) {
 			System.out.println("I/O Exception during loading configuration");
 		}
-
+		
 		// class bindings
 		bind(StatsKeeper.class).to(HashMapStats.class);
-
+		
 		String algorithmName = properties.getProperty("extractionAlgorithm");
 		if (algorithmName.equals("mh")
 				|| algorithmName.equals("MHExtractionAlgorithm")) {

@@ -12,5 +12,5 @@ public interface ExtractionAlgorithm {
 	                      DocumentMetadata metadata) throws IOException, InterruptedException;
 	
 	StatsKeeper getStatsKeeper();
-
+	
 }

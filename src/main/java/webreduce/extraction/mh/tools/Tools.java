@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Tools {
-
+	
 	// creates an Instance object from feature calculation results
 	// which is bound to an artificial training set so it can be
 	// handed over to the classifier
@@ -22,26 +22,26 @@ public class Tools {
 	// object is reduced)
 	public static Instance createInstanceFromData(HashMap<String, Double> featureResults,
 	                                              ArrayList<Attribute> attributes, FastVector attributesAsVector) {
-
+		
 		// unfortunately WEKA doesn't allow for standalone Instance objects without a dataset container
 		// that's why we need to keep a FastVector of Attributes to create an Instances object
-
+		
 		Instances dataset = new Instances("TestDataset", attributesAsVector, 0);
 //		System.out.println("Dataset created with " + attributesAsVector.size() + " expected attributes (including class) ...");
 		dataset.setClassIndex(dataset.numAttributes() - 1); // last attribute is classAttr
-
+		
 		// +1 because of additional class attribute
 		Instance resultInstance = new Instance(attributes.size() + 1);
-
+		
 		for (int i = 0; i < attributes.size(); i++) {
 			String featureName = attributes.get(i).name();
 			resultInstance.setValue(i, featureResults.get(featureName));
 		}
 //		System.out.println("Test instance filled with " + attributes.size() + " values (excluding class) ...");
-
+		
 		// add a dummy class attribute value
 		resultInstance.setValue(dataset.classAttribute(), -1);
-
+		
 		dataset.add(resultInstance);
 
 //		System.out.println("Created instance has " + dataset.firstInstance().numClasses() + " classes.");
@@ -56,7 +56,7 @@ public class Tools {
 		
 		System.out.println("Writing " + path);
 		weka.core.converters.ConverterUtils.DataSink.write(path, data);
-
+		
 	}
 	
 	// displays file chooser for selecting an ARFF and returns path if selected
@@ -70,7 +70,7 @@ public class Tools {
 		} else {
 			return null;
 		}
-
+		
 	}
 	
 	// creates a new set of Instances which only contain the class attribute plus the attribute 'attr'

@@ -30,13 +30,13 @@ import java.util.Set;
  *
  */
 public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
-
+	
 	protected static final int TABLE_MIN_ROWS = 2;
 	protected static final int TABLE_MIN_COLS = 2;
 	private static int NUM_RUNS = 50;
 	private final TableClassification tableClassifier;
 	private final TableConvert tableConverter;
-
+	
 	@Inject
 	public MHExtractionAlgorithm(StatsKeeper stats,
 	                             @Named("extractTopNTerms") boolean th_extract_terms, TableClassification tableClassifier) {
@@ -74,7 +74,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 //			System.out.println(ea.stats.statsAsMap().toString());
 		}
 	}
-
+	
 	public List<Dataset> extract(Document doc, DocumentMetadata metadata) throws IOException,
 			InterruptedException {
 		List<Dataset> result = new ArrayList<Dataset>();
@@ -88,7 +88,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 			stats.reportProgress();
 			count += 1;
 			stats.incCounter(TABLE_COUNTERS.TABLES_FOUND);
-
+			
 			// remove tables inside forms
 			for (Element p : table.parents()) {
 				if (p.tagName().equals("form")) {
@@ -96,7 +96,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 					continue main_loop;
 				}
 			}
-
+			
 			// remove table with sub-tables
 			Elements subTables = table.getElementsByTag("table");
 			subTables.remove(table);
@@ -104,7 +104,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 				stats.incCounter(TABLE_COUNTERS.NON_LEAF_TABLES);
 				continue;
 			}
-
+			
 			// there should be header cells
 			Boolean has_header = true;
 			Elements headerCells = table.select("th");
@@ -120,12 +120,12 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 				continue;
 			}
 			ClassificationResult cResult = tableClassifier.classifyTable(convertedTable.get());
-
+			
 			stats.incCounter(cResult.getTableType());
 			if (cResult.getTableType() == TableType.LAYOUT) {
 				continue;
 			}
-
+			
 			Dataset ds = new Dataset();
 			ds.relation = toArrayOfString(convertedTable.get());
 			ds.headerPosition = headerPosition(table.getElementsByTag("tr"));
@@ -135,7 +135,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 			ds.recordEndOffset = metadata.getEnd();
 			ds.url = metadata.getUrl();
 			ds.tableType = cResult.getTableType();
-
+			
 			if (tags == null && extract_terms) {
 				String bodyContent = doc.select("body").text();
 				Set<String> tagSet = termExtractor.topNTerms(bodyContent, 100);
@@ -154,7 +154,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 		}
 		return result;
 	}
-
+	
 	/*
 	 * Convert to DWTC output format.
 	 * MH uses row-major, DWTC uses col-major layout.
@@ -165,7 +165,7 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 		int numCols = table[0].length;
 		int numRows = table.length;
 		String[][] relation = new String[numCols][numRows];
-
+		
 		for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
 			for (int colIndex = 0; colIndex < table[rowIndex].length; colIndex++) {
 				Element cell = table[rowIndex][colIndex];
@@ -178,12 +178,12 @@ public class MHExtractionAlgorithm extends BasicExtractionAlgorithm {
 				relation[colIndex][rowIndex] = cellStr;
 			}
 		}
-
+		
 		return relation;
 	}
 	
 	public enum TABLE_COUNTERS {
 		TABLES_FOUND, TABLES_INSIDE_FORMS, NON_LEAF_TABLES, SMALL_OR_IRREGULAR_TABLES, RELATIONS_FOUND, NO_HEADERS
 	}
-
+	
 }

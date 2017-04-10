@@ -17,7 +17,7 @@ import java.io.InputStream;
 
 
 public class TableClassification {
-
+	
 	private TableConvert tableConvert;
 	private FeaturesP1 phase1Features;
 	private FeaturesP2 phase2Features;
@@ -26,7 +26,7 @@ public class TableClassification {
 	private Attribute classAttr1;
 	private Attribute classAttr2;
 	private double layoutVal, relationVal, entityVal, matrixVal, noneVal;
-
+	
 	// Constructor for classification class
 	// initializes classificators and models
 	// for phase 1 and 2
@@ -43,19 +43,19 @@ public class TableClassification {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
+		
 		// the order of the FastVector elements has
 		// to be the same as in the ARFF metadata
 		// of the ARFF file which has been used
 		// to train the model
-
+		
 		// Phase 1
 		classAttr1 = new Attribute("class", phase1Features.getClassVector());
 		layoutVal = classAttr1.indexOfValue("LAYOUT");
-
+		
 		// Phase 2
 		classAttr2 = new Attribute("class", phase2Features.getClassVector());
-
+		
 		relationVal = classAttr2.indexOfValue("RELATION");
 		entityVal = classAttr2.indexOfValue("ENTITY");
 		matrixVal = classAttr2.indexOfValue("MATRIX");
@@ -70,7 +70,7 @@ public class TableClassification {
 		InputStream stream = TableClassification.class.getResourceAsStream(path);
 		return (Classifier) weka.core.SerializationHelper.read(stream);
 	}
-
+	
 	// Returns classification as TableType from given
 	// JSoup.Element 'table'
 	// Constructor of this class has to be called first
@@ -83,7 +83,7 @@ public class TableClassification {
 		}
 		return classifyTable(convertedTable.get());
 	}
-
+	
 	// Returns classification as TableType from given
 	// JSoup.Element 'table'
 	// Constructor of this class has to be called first
@@ -120,6 +120,6 @@ public class TableClassification {
 			e.printStackTrace();
 			return null;
 		}
-
+		
 	}
 }

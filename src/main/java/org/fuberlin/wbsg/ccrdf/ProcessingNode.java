@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Properties;
 
 public abstract class ProcessingNode {
-
+	
 	public static final String DATA_SUFFIX = ".warc.gz";
 	private static final String PFILENAME = "/webreduce.properties";
 	private static Logger log = Logger.getLogger(ProcessingNode.class);
@@ -26,7 +26,7 @@ public abstract class ProcessingNode {
 	private AmazonSimpleDBClient sdb = null;
 	private RestS3Service s3 = null;
 	private AmazonSQS sqs = null;
-
+	
 	private static Properties loadConfig(String f) {
 		Properties p = new Properties();
 		InputStream pStream = ProcessingNode.class
@@ -42,7 +42,7 @@ public abstract class ProcessingNode {
 		}
 		return p;
 	}
-
+	
 	protected Properties config() {
 		if (config == null) {
 			config = loadConfig(PFILENAME);
@@ -68,36 +68,36 @@ public abstract class ProcessingNode {
 		}
 		return value.trim();
 	}
-
+	
 	protected AmazonSimpleDBClient getDbClient() {
 		if (sdb == null) {
 			sdb = new AmazonSimpleDBClient(getAwsCredentials());
 		}
 		return sdb;
 	}
-
+	
 	public void setDbClient(AmazonSimpleDBClient client) {
 		sdb = client;
 	}
-
+	
 	protected AWSCredentials getAwsCredentials() {
 		return new AWSCredentials() {
 			public String getAWSAccessKeyId() {
 				return config().getProperty("awsAccessKey");
 			}
-
+			
 			public String getAWSSecretKey() {
 				return config().getProperty("awsSecretKey");
 			}
 		};
 	}
-
+	
 	protected org.jets3t.service.security.AWSCredentials getJetS3tCredentials() {
 		AWSCredentials cred = getAwsCredentials();
 		return new org.jets3t.service.security.AWSCredentials(
 				cred.getAWSAccessKeyId(), cred.getAWSSecretKey());
 	}
-
+	
 	protected AmazonSQS getQueue() {
 		if (sqs == null) {
 			sqs = new AmazonSQSClient(getAwsCredentials());
@@ -105,27 +105,27 @@ public abstract class ProcessingNode {
 		}
 		return sqs;
 	}
-
+	
 	public void setQueue(AmazonSQS q) {
 		sqs = q;
 	}
-
+	
 	protected RestS3Service getStorage() {
 		if (s3 == null) {
 			try {
 				s3 = new RestS3Service(getJetS3tCredentials());
-
+				
 			} catch (S3ServiceException e1) {
 				log.warn("Unable to connect to S3", e1);
 			}
 		}
 		return s3;
 	}
-
+	
 	public void setStorage(RestS3Service s) {
 		s3 = s;
 	}
-
+	
 	protected String getQueueUrl() {
 		if (queueUrl == null) {
 			String jobQueueName = config().getProperty("jobQueueName");
@@ -137,23 +137,23 @@ public abstract class ProcessingNode {
 				GetQueueUrlResult res = getQueue().getQueueUrl(
 						new GetQueueUrlRequest(jobQueueName));
 				queueUrl = res.getQueueUrl();
-
+				
 				// create the queue if it should be missing for some reason
 			} catch (AmazonServiceException e) {
 				if (e.getErrorCode().equals(
 						"AWS.SimpleQueueService.NonExistentQueue")) {
-
+					
 					CreateQueueRequest req = new CreateQueueRequest();
 					req.setQueueName(jobQueueName);
-
+					
 					Map<String, String> qattr = new HashMap<String, String>();
 					qattr.put("DelaySeconds", "0");
-
+					
 					// TODO: make these values configurable?
 					qattr.put("MessageRetentionPeriod", "1209600");
 					qattr.put("VisibilityTimeout", getOrCry("jobTimeLimit"));
 					req.setAttributes(qattr);
-
+					
 					CreateQueueResult res = getQueue().createQueue(req);
 					queueUrl = res.getQueueUrl();
 				}
@@ -161,11 +161,11 @@ public abstract class ProcessingNode {
 		}
 		return queueUrl;
 	}
-
+	
 	public void setQueueUrl(String u) {
 		queueUrl = u;
 	}
-
+	
 	protected void deleteQueue() {
 		getQueue().deleteQueue(new DeleteQueueRequest(getQueueUrl()));
 		// set the url to null so the queue can be re-created

@@ -36,6 +36,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+/**
+ * @todo: divide this class into smaller pieces, over 1000 lines is a bit too much
+ */
 public class Master extends ProcessingNode {
 	
 	private static final int BATCH_SIZE = 10;
@@ -50,14 +53,56 @@ public class Master extends ProcessingNode {
 	 * http://alestic.com/2009/06/ec2-user-data-scripts
 	 */
 	
+	//@todo: java 8
 	private final String startupScript =
 			"#!/bin/bash \n echo 1 > /proc/sys/vm/overcommit_memory \n aptitude update \n aptitude -y install openjdk-7-jre-headless htop \n wget -O /tmp/start.jar \""
 					+ getJarUrl()
 					+ "\" \n java -Xmx"
 					+ getOrCry("javamemory").trim()
 					+ " -jar /tmp/start.jar > /tmp/start.log & \n";
-	Map<String, OutputStream> outputWriters = new HashMap<String, OutputStream>();
-	Map<String, File> outputFiles = new HashMap<String, File>();
+	private Map<String, OutputStream> outputWriters = new HashMap<String, OutputStream>();
+	private Map<String, File> outputFiles = new HashMap<String, File>();
+	
+	private static void copyFile(File sourceFile, File destFile)
+			throws IOException {
+		if (!destFile.exists()) {
+			destFile.createNewFile();
+		}
+		
+		FileChannel source = null;
+		FileChannel destination = null;
+		FileInputStream fileInputStream = null;
+		FileOutputStream fileOutputStream = null;
+		try {
+			fileInputStream = new FileInputStream(sourceFile);
+			source = fileInputStream.getChannel();
+			fileOutputStream = new FileOutputStream(destFile);
+			destination = fileOutputStream.getChannel();
+			long count = 0;
+			long size = source.size();
+			
+			//@todo understand this line and the overall necessity of this function compared to other move tools
+			//is stream copying actually faster than File.copy?
+			while ((count += destination.transferFrom(source, count, size
+					- count)) < size) {
+			}
+		} catch (IOException e) {
+			log.error("Error while trying to transform data.", e);
+		} finally {
+			if (source != null) {
+				source.close();
+			}
+			if (fileInputStream != null) {
+				fileInputStream.close();
+			}
+			if (fileOutputStream != null) {
+				fileOutputStream.close();
+			}
+			if (destination != null) {
+				destination.close();
+			}
+		}
+	}
 	
 	// command line parameters, different actions
 	public static void main(String[] args) throws JSAPException {
@@ -326,44 +371,6 @@ public class Master extends ProcessingNode {
 		}
 		
 		printUsageAndExit(jsap, config);
-	}
-	
-	private static void copyFile(File sourceFile, File destFile)
-			throws IOException {
-		if (!destFile.exists()) {
-			destFile.createNewFile();
-		}
-		
-		FileChannel source = null;
-		FileChannel destination = null;
-		FileInputStream fileInputStream = null;
-		FileOutputStream fileOutputStream = null;
-		try {
-			fileInputStream = new FileInputStream(sourceFile);
-			source = fileInputStream.getChannel();
-			fileOutputStream = new FileOutputStream(destFile);
-			destination = fileOutputStream.getChannel();
-			long count = 0;
-			long size = source.size();
-			while ((count += destination.transferFrom(source, count, size
-					- count)) < size) {
-			}
-		} catch (IOException e) {
-			log.error("Error while trying to transform data.", e);
-		} finally {
-			if (source != null) {
-				source.close();
-			}
-			if (fileInputStream != null) {
-				fileInputStream.close();
-			}
-			if (fileOutputStream != null) {
-				fileOutputStream.close();
-			}
-			if (destination != null) {
-				destination.close();
-			}
-		}
 	}
 	
 	private static Set<String> getSdbAttributes(AmazonSimpleDBClient client,

@@ -17,19 +17,19 @@ import weka.core.Instance;
 import java.util.*;
 
 public class FeaturesP1 {
-
+	
 	// most of the local features are calculated in batches for all rows/colums
 	// we need a whitelist to filter out those columns and rows we don't need
 	private static String featureWhiteList = "LOCAL_RATIO_IS_NUMBER_COL_1, LOCAL_RATIO_ANCHOR_ROW_1, RATIO_IMG, LOCAL_RATIO_ANCHOR_COL_1, LOCAL_LENGTH_VARIANCE_COL_1, LOCAL_RATIO_IMAGE_COL_1, LOCAL_RATIO_IMAGE_COL_0, LOCAL_SPAN_RATIO_COL_2, LOCAL_SPAN_RATIO_COL_1, LOCAL_AVG_LENGTH_ROW_2, LOCAL_RATIO_HEADER_ROW_0, RATIO_DIGIT, LOCAL_RATIO_IMAGE_ROW_0, RATIO_ALPHABETICAL, LOCAL_RATIO_IMAGE_ROW_1, LOCAL_RATIO_INPUT_COL_1, LOCAL_RATIO_INPUT_COL_0, LOCAL_RATIO_CONTAINS_NUMBER_ROW_2, LOCAL_AVG_LENGTH_COL_0, RATIO_EMPTY, AVG_ROWS, LOCAL_RATIO_INPUT_ROW_1, LOCAL_RATIO_CONTAINS_NUMBER_COL_2, LOCAL_RATIO_HEADER_COL_1, LOCAL_RATIO_INPUT_ROW_0, AVG_COLS";
-
+	
 	private ArrayList<AbstractTableListener> globalListeners;
 	private ArrayList<AbstractTableListener> localListeners;
 	private ArrayList<Attribute> attributeList; // attribute list WITHOUT class attribute
-
+	
 	private FastVector attributeVector; // vector of all atrributes PLUS class attribute
 	private FastVector classAttrVector; // vector of strings of all possible class values
 	private Attribute classAttr;
-
+	
 	public FeaturesP1() {
 		attributeList = new ArrayList<Attribute>();
 		attributeVector = new FastVector();
@@ -46,7 +46,7 @@ public class FeaturesP1 {
 		classAttrVector.addElement("MATRIX");
 		classAttrVector.addElement("NONE");
 		classAttr = new Attribute("CLASS", classAttrVector);
-
+		
 		attributeVector.addElement(classAttr);
 	}
 	
@@ -65,13 +65,13 @@ public class FeaturesP1 {
 	public FastVector getClassVector() {
 		return classAttrVector;
 	}
-
+	
 	// returns an ArrayList of all attributes that
 	// are used for this feature phase
 	public ArrayList<Attribute> getAttrList() {
 		return attributeList;
 	}
-
+	
 	// adds all desired features to the computation list
 	public void initializeFeatures() {
 		// Add global features to computation list
@@ -79,7 +79,7 @@ public class FeaturesP1 {
 		globalListeners.add(new AvgRows());
 		globalListeners.add(new AvgCols());
 		globalListeners.add(new ContentRatios());
-
+		
 		// Add local features to computation list
 		localListeners = new ArrayList<AbstractTableListener>();
 		localListeners.add(new LocalAvgLength());
@@ -87,48 +87,48 @@ public class FeaturesP1 {
 		localListeners.add(new LocalContentRatios());
 		localListeners.add(new LocalLengthVariance());
 	}
-
+	
 	public Instance computeFeatures(Element[][] convertedTable) {
 		HashMap<String, Double> resultMap = new HashMap<String, Double>();
 		TableStats tStats = new TableStats(convertedTable[0].length, convertedTable.length);
-
+		
 		initializeFeatures();
-
+		
 		// GLOBAL FEATURES
-
+		
 		// initialization event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.start(tStats);
 		}
-
+		
 		for (tStats.rowIndex = 0; tStats.rowIndex < tStats.getTableHeight(); tStats.rowIndex++) {
 			for (tStats.colIndex = 0; tStats.colIndex < tStats.getTableWidth(); tStats.colIndex++) {
-
+				
 				// onCell event
 				for (AbstractTableListener listener : globalListeners) {
 					listener.computeCell(convertedTable[tStats.rowIndex][tStats.colIndex], tStats);
 				}
-
+				
 			}
-
+			
 		}
-
+		
 		// end event
 		for (AbstractTableListener listener : globalListeners) {
 			listener.end();
 		}
-
+		
 		// compute results of all listeners and put them into the result map
 		for (AbstractTableListener listener : globalListeners) {
 			resultMap.putAll(listener.getResults());
 		}
-
+		
 		// LOCAL FEATURES
-
+		
 		// PER-ROW
 		// get the 2 first and 2 last rows
 		int[] localRowIndexes = {0, 1, tStats.getTableHeight() - 1};
-
+		
 		for (int i = 0; i < localRowIndexes.length; i++) {
 			
 			int currentRowIndex = localRowIndexes[i];
@@ -167,7 +167,7 @@ public class FeaturesP1 {
 		// PER-COL
 		// get the 2 first and last columns
 		int[] localColIndexes = {0, 1, tStats.getTableWidth() - 1};
-
+		
 		for (int i = 0; i < localColIndexes.length; i++) {
 			
 			int currentColIndex = localColIndexes[i];
@@ -202,7 +202,7 @@ public class FeaturesP1 {
 				
 			}
 		}
-
+		
 		// Create WEKA instance
 
 //		Instance resultInstance = new Instance(featureCount);
@@ -356,13 +356,13 @@ public class FeaturesP1 {
 			return result;
 		}
 	}
-
+	
 	public class ContentRatios extends AbstractTableListener {
 		
 		private int cellCount, images, alphabetical, digits, empty;
 		private double image_ratio, alphabetical_ratio,
 				digit_ratio, empty_ratio;
-
+		
 		public ContentRatios() {
 			featureName = "GROUP_GLOBAL_CONTENT_RATIOS";
 		}
@@ -416,7 +416,7 @@ public class FeaturesP1 {
 			return result;
 		}
 	}
-
+	
 	////
 	// LOCAL FEATURES DEFINITION
 	///
@@ -539,7 +539,7 @@ public class FeaturesP1 {
 				count_contains_number, count_is_number;
 		private double ratio_th, ratio_anchor, ratio_img, ratio_input,
 				ratio_contains_number, ratio_is_number;
-
+		
 		public LocalContentRatios() {
 			featureName = "GROUP_LOCAL_CONTENT_RATIOS";
 		}
