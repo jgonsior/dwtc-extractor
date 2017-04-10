@@ -4,3 +4,10 @@ target/
 .project
 *.swp
 .classpath
+
+# IntelliJ
+/out/
+/*.iml
+/*.iws
+.idea/
+dwtc-extractor.iml
